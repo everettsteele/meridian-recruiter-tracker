@@ -1,9 +1,4 @@
-import os
-
-os.makedirs("public", exist_ok=True)
-os.makedirs("data", exist_ok=True)
-
-index_js = r"""const express = require('express');
+const express = require('express');
 const path = require('path');
 const fs = require('fs');
 
@@ -16,19 +11,19 @@ if (!fs.existsSync(path.join(__dirname, 'data'))) {
 }
 
 const SEED_FIRMS = [
-  { id: 1,  tier: 1, name: 'Bespoke Partners', why: 'Top PE-backed SaaS exec search. Places COO/President roles. 700K exec network. Exact profile match.', contact: 'bespokepartners.com — submit via site, then find a practice partner on LinkedIn', status: 'not contacted', notes: '', linkedin: 'https://www.linkedin.com/company/bespoke-partners/', website: 'https://bespokepartners.com' },
-  { id: 2,  tier: 1, name: 'Talentfoot', why: 'SaaS-only exec search. PE-backed sweet spot. Atlanta reach. Strong COO/ops practice.', contact: 'talentfoot.com — candidate submission form. Chicago HQ, national.', status: 'not contacted', notes: '', linkedin: 'https://www.linkedin.com/company/talentfoot/', website: 'https://talentfoot.com' },
-  { id: 3,  tier: 1, name: 'Cowen Partners', why: 'Forbes Top 100. PE-backed COO specialists. Deep ops practice. Atlanta listed. Fast time-to-fill.', contact: 'cowenpartners.com — direct candidate outreach. Find ops practice partner on LinkedIn.', status: 'not contacted', notes: '', linkedin: 'https://www.linkedin.com/company/cowen-partners/', website: 'https://cowenpartners.com' },
-  { id: 4,  tier: 1, name: 'BSG (Boston Search Group)', why: "Mid-market PE. Explicitly looks for builder-leader profile. SaaS and healthcare tech verticals.", contact: 'bostonsearchgroup.com — reach out to partners directly via LinkedIn.', status: 'not contacted', notes: '', linkedin: 'https://www.linkedin.com/company/boston-search-group/', website: 'https://bostonsearchgroup.com' },
-  { id: 5,  tier: 1, name: 'Bloom Recruiting (Callie Vandegrift)', why: 'Warm relationship. Already placed you in a process. Has resume and full context.', contact: 'Callie Vandegrift — direct. Already in your network.', status: 'not contacted', notes: '', linkedin: '', website: '' },
-  { id: 6,  tier: 2, name: 'True Search', why: 'PE/VC tech companies. Transparent process. Strong Series B/C COO practice.', contact: 'truesearch.com — candidate submission via site.', status: 'not contacted', notes: '', linkedin: 'https://www.linkedin.com/company/true-search/', website: 'https://truesearch.com' },
-  { id: 7,  tier: 2, name: 'Heidrick and Struggles', why: 'National. COO practice. Good for high-profile PE-backed ops roles at scale.', contact: 'heidrick.com — candidate registration via site.', status: 'not contacted', notes: '', linkedin: 'https://www.linkedin.com/company/heidrick-struggles/', website: 'https://heidrick.com' },
-  { id: 8,  tier: 2, name: 'Korn Ferry', why: 'Large national firm. COO/SVP Ops practice. Best for Series C/D and PE-owned companies.', contact: 'kornferry.com — candidate portal on site.', status: 'not contacted', notes: '', linkedin: 'https://www.linkedin.com/company/korn-ferry/', website: 'https://kornferry.com' },
-  { id: 9,  tier: 2, name: 'TGC Search', why: 'Placed COOs for IPO-prep SaaS. Experience in scaling scenarios like ChartRequest.', contact: 'tgcsearch.com — reach out to partners directly via LinkedIn.', status: 'not contacted', notes: '', linkedin: 'https://www.linkedin.com/company/tgc-search/', website: 'https://tgcsearch.com' },
-  { id: 10, tier: 2, name: 'Charles Aris', why: 'NC-based, national reach. Consistent COO placements in Southeast growth companies.', contact: 'charlesaris.com — candidate submission form on site.', status: 'not contacted', notes: '', linkedin: 'https://www.linkedin.com/company/charles-aris/', website: 'https://charlesaris.com' },
-  { id: 11, tier: 3, name: 'ReadySetExec', why: 'Atlanta-based. SaaS/COO local focus. Strong regional relationships.', contact: 'readysetexec.com — Atlanta-based, reach out via site.', status: 'not contacted', notes: '', linkedin: '', website: 'https://readysetexec.com' },
-  { id: 12, tier: 3, name: 'Klein Hersh', why: 'Healthcare tech and digital health SaaS. ChartRequest background is a specific credential here.', contact: 'kleinhersh.com — candidate submission via site.', status: 'not contacted', notes: '', linkedin: 'https://www.linkedin.com/company/klein-hersh/', website: 'https://kleinhersh.com' },
-  { id: 13, tier: 3, name: 'Diversified Search Group', why: 'Mission-driven lens opens nonprofit and civic-adjacent operating roles.', contact: 'diversifiedsearchgroup.com — candidate registration on site.', status: 'not contacted', notes: '', linkedin: 'https://www.linkedin.com/company/diversified-search/', website: 'https://diversifiedsearchgroup.com' },
+  { id: 1,  tier: 1, name: 'Bespoke Partners', why: 'Top PE-backed SaaS exec search. Places COO/President roles. 700K exec network. Exact profile match.', contact: 'bespokepartners.com - submit via site, then find a practice partner on LinkedIn', status: 'not contacted', notes: '', linkedin: 'https://www.linkedin.com/company/bespoke-partners/', website: 'https://bespokepartners.com' },
+  { id: 2,  tier: 1, name: 'Talentfoot', why: 'SaaS-only exec search. PE-backed sweet spot. Atlanta reach. Strong COO/ops practice.', contact: 'talentfoot.com - candidate submission form. Chicago HQ, national.', status: 'not contacted', notes: '', linkedin: 'https://www.linkedin.com/company/talentfoot/', website: 'https://talentfoot.com' },
+  { id: 3,  tier: 1, name: 'Cowen Partners', why: 'Forbes Top 100. PE-backed COO specialists. Deep ops practice. Atlanta listed. Fast time-to-fill.', contact: 'cowenpartners.com - direct candidate outreach. Find ops practice partner on LinkedIn.', status: 'not contacted', notes: '', linkedin: 'https://www.linkedin.com/company/cowen-partners/', website: 'https://cowenpartners.com' },
+  { id: 4,  tier: 1, name: 'BSG (Boston Search Group)', why: 'Mid-market PE. Builder-leader profile match. SaaS and healthcare tech verticals.', contact: 'bostonsearchgroup.com - reach out to partners directly via LinkedIn.', status: 'not contacted', notes: '', linkedin: 'https://www.linkedin.com/company/boston-search-group/', website: 'https://bostonsearchgroup.com' },
+  { id: 5,  tier: 1, name: 'Bloom Recruiting (Callie Vandegrift)', why: 'Warm relationship. Already placed you in a process. Has resume and full context.', contact: 'Callie Vandegrift - direct. Already in your network.', status: 'not contacted', notes: '', linkedin: '', website: '' },
+  { id: 6,  tier: 2, name: 'True Search', why: 'PE/VC tech companies. Transparent process. Strong Series B/C COO practice.', contact: 'truesearch.com - candidate submission via site.', status: 'not contacted', notes: '', linkedin: 'https://www.linkedin.com/company/true-search/', website: 'https://truesearch.com' },
+  { id: 7,  tier: 2, name: 'Heidrick and Struggles', why: 'National. COO practice. Good for high-profile PE-backed ops roles at scale.', contact: 'heidrick.com - candidate registration via site.', status: 'not contacted', notes: '', linkedin: 'https://www.linkedin.com/company/heidrick-struggles/', website: 'https://heidrick.com' },
+  { id: 8,  tier: 2, name: 'Korn Ferry', why: 'Large national firm. COO/SVP Ops practice. Best for Series C/D and PE-owned companies.', contact: 'kornferry.com - candidate portal on site.', status: 'not contacted', notes: '', linkedin: 'https://www.linkedin.com/company/korn-ferry/', website: 'https://kornferry.com' },
+  { id: 9,  tier: 2, name: 'TGC Search', why: 'Placed COOs for IPO-prep SaaS. Experience in scaling scenarios like ChartRequest.', contact: 'tgcsearch.com - reach out to partners directly via LinkedIn.', status: 'not contacted', notes: '', linkedin: 'https://www.linkedin.com/company/tgc-search/', website: 'https://tgcsearch.com' },
+  { id: 10, tier: 2, name: 'Charles Aris', why: 'NC-based, national reach. Consistent COO placements in Southeast growth companies.', contact: 'charlesaris.com - candidate submission form on site.', status: 'not contacted', notes: '', linkedin: 'https://www.linkedin.com/company/charles-aris/', website: 'https://charlesaris.com' },
+  { id: 11, tier: 3, name: 'ReadySetExec', why: 'Atlanta-based. SaaS/COO local focus. Strong regional relationships.', contact: 'readysetexec.com - Atlanta-based, reach out via site.', status: 'not contacted', notes: '', linkedin: '', website: 'https://readysetexec.com' },
+  { id: 12, tier: 3, name: 'Klein Hersh', why: 'Healthcare tech and digital health SaaS. ChartRequest background is a specific credential here.', contact: 'kleinhersh.com - candidate submission via site.', status: 'not contacted', notes: '', linkedin: 'https://www.linkedin.com/company/klein-hersh/', website: 'https://kleinhersh.com' },
+  { id: 13, tier: 3, name: 'Diversified Search Group', why: 'Mission-driven lens opens nonprofit and civic-adjacent operating roles.', contact: 'diversifiedsearchgroup.com - candidate registration on site.', status: 'not contacted', notes: '', linkedin: 'https://www.linkedin.com/company/diversified-search/', website: 'https://diversifiedsearchgroup.com' },
 ];
 
 function loadDB() {
@@ -74,227 +69,3 @@ app.post('/api/firms', (req, res) => {
 });
 
 app.listen(PORT, () => console.log('Recruiter tracker running on :' + PORT));
-"""
-
-index_html = """<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Recruiter Tracker</title>
-<style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  :root {
-    --bg: #ffffff; --bg2: #f7f7f5; --bg3: #f0efe9;
-    --text: #1a1a1a; --text2: #555; --text3: #888;
-    --border: rgba(0,0,0,0.10); --border2: rgba(0,0,0,0.18);
-    --blue-bg: #e6f1fb; --blue-text: #0c447c;
-    --green-bg: #eaf3de; --green-text: #27500a;
-    --gray-bg: #f1efe8; --gray-text: #444441;
-    --amber-bg: #faeeda; --amber-text: #633806;
-    --red-bg: #fcebeb; --red-text: #791f1f;
-    --teal-bg: #e1f5ee; --teal-text: #085041;
-    --radius: 8px; --radius-lg: 12px;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #1c1c1a; --bg2: #252522; --bg3: #2e2e2b;
-      --text: #e8e6df; --text2: #a8a69f; --text3: #6e6c67;
-      --border: rgba(255,255,255,0.10); --border2: rgba(255,255,255,0.18);
-      --blue-bg: #042c53; --blue-text: #b5d4f4;
-      --green-bg: #173404; --green-text: #c0dd97;
-      --gray-bg: #2c2c2a; --gray-text: #d3d1c7;
-      --amber-bg: #412402; --amber-text: #fac775;
-      --red-bg: #501313; --red-text: #f7c1c1;
-      --teal-bg: #04342c; --teal-text: #9fe1cb;
-    }
-  }
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg3); color: var(--text); font-size: 14px; line-height: 1.5; }
-  header { background: var(--bg); border-bottom: 0.5px solid var(--border); padding: 0 24px; height: 56px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 10; }
-  header h1 { font-size: 15px; font-weight: 500; }
-  header span { font-size: 12px; color: var(--text3); }
-  .main { max-width: 1200px; margin: 0 auto; padding: 20px 16px; }
-  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }
-  .stat { background: var(--bg); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 12px 16px; }
-  .stat-label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
-  .stat-val { font-size: 24px; font-weight: 500; }
-  .controls { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; align-items: center; }
-  .filter-btn { font-size: 12px; padding: 5px 12px; border-radius: var(--radius); border: 0.5px solid var(--border2); background: transparent; color: var(--text2); cursor: pointer; }
-  .filter-btn.active, .filter-btn:hover { background: var(--bg2); color: var(--text); }
-  .add-btn { margin-left: auto; font-size: 12px; padding: 5px 14px; border-radius: var(--radius); border: 0.5px solid var(--border2); background: var(--text); color: var(--bg); cursor: pointer; }
-  .card { background: var(--bg); border: 0.5px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; margin-bottom: 10px; }
-  .card-head { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 12px; padding: 14px 16px; cursor: pointer; user-select: none; }
-  .card-head:hover { background: var(--bg2); }
-  .firm-top { display: flex; align-items: center; gap: 10px; }
-  .firm-name { font-weight: 500; font-size: 14px; }
-  .tier-badge { font-size: 10px; font-weight: 500; padding: 2px 8px; border-radius: 4px; }
-  .t1 { background: var(--blue-bg); color: var(--blue-text); }
-  .t2 { background: var(--green-bg); color: var(--green-text); }
-  .t3 { background: var(--gray-bg); color: var(--gray-text); }
-  .status-badge { font-size: 11px; padding: 3px 10px; border-radius: 4px; font-weight: 500; }
-  .s-not { background: var(--gray-bg); color: var(--gray-text); }
-  .s-contacted { background: var(--blue-bg); color: var(--blue-text); }
-  .s-conversation { background: var(--amber-bg); color: var(--amber-text); }
-  .s-placed { background: var(--teal-bg); color: var(--teal-text); }
-  .s-passed { background: var(--red-bg); color: var(--red-text); }
-  .chevron { font-size: 11px; color: var(--text3); transition: transform 0.2s; }
-  .chevron.open { transform: rotate(180deg); }
-  .card-body { display: none; padding: 0 16px 16px; border-top: 0.5px solid var(--border); }
-  .card-body.open { display: block; }
-  .card-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 14px; }
-  .field-label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 5px; }
-  .field-val { font-size: 13px; color: var(--text2); line-height: 1.5; }
-  .links { display: flex; gap: 8px; margin-top: 6px; }
-  .link-btn { font-size: 11px; padding: 3px 10px; border-radius: var(--radius); border: 0.5px solid var(--border2); background: transparent; color: var(--text2); text-decoration: none; }
-  .link-btn:hover { background: var(--bg2); }
-  .status-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
-  .status-opt { font-size: 12px; padding: 4px 12px; border-radius: var(--radius); border: 0.5px solid var(--border); background: transparent; color: var(--text2); cursor: pointer; }
-  .status-opt:hover { background: var(--bg2); }
-  .status-opt.selected { border-color: var(--border2); font-weight: 500; color: var(--text); background: var(--bg2); }
-  .notes-area { width: 100%; margin-top: 12px; font-size: 13px; font-family: inherit; border: 0.5px solid var(--border); border-radius: var(--radius); padding: 8px 10px; background: var(--bg2); color: var(--text); resize: vertical; min-height: 60px; }
-  .notes-area:focus { outline: none; border-color: var(--border2); }
-  .notes-label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.04em; margin-top: 14px; margin-bottom: 5px; }
-  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 100; align-items: center; justify-content: center; }
-  .modal-overlay.open { display: flex; }
-  .modal { background: var(--bg); border-radius: var(--radius-lg); padding: 24px; width: 480px; max-width: calc(100vw - 32px); border: 0.5px solid var(--border2); }
-  .modal h2 { font-size: 15px; font-weight: 500; margin-bottom: 16px; }
-  .modal input, .modal select, .modal textarea { width: 100%; font-size: 13px; font-family: inherit; border: 0.5px solid var(--border2); border-radius: var(--radius); padding: 7px 10px; background: var(--bg2); color: var(--text); margin-bottom: 10px; }
-  .modal input:focus, .modal select:focus { outline: none; }
-  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 6px; }
-  .btn-cancel { font-size: 13px; padding: 6px 14px; border-radius: var(--radius); border: 0.5px solid var(--border2); background: transparent; color: var(--text2); cursor: pointer; }
-  .btn-save { font-size: 13px; padding: 6px 14px; border-radius: var(--radius); border: none; background: var(--text); color: var(--bg); cursor: pointer; font-weight: 500; }
-  @media (max-width: 600px) { .stats { grid-template-columns: repeat(2, 1fr); } .card-grid { grid-template-columns: 1fr; } }
-</style>
-</head>
-<body>
-<header>
-  <h1>Recruiter Tracker</h1>
-  <span id="last-updated"></span>
-</header>
-<div class="main">
-  <div class="stats" id="stats"></div>
-  <div class="controls">
-    <button class="filter-btn active" data-filter="all">All</button>
-    <button class="filter-btn" data-filter="tier-1">Tier 1</button>
-    <button class="filter-btn" data-filter="tier-2">Tier 2</button>
-    <button class="filter-btn" data-filter="tier-3">Tier 3</button>
-    <button class="filter-btn" data-filter="not contacted">Not contacted</button>
-    <button class="filter-btn" data-filter="contacted">Contacted</button>
-    <button class="filter-btn" data-filter="in conversation">In conversation</button>
-    <button class="add-btn" onclick="openModal()">+ Add firm</button>
-  </div>
-  <div id="cards"></div>
-</div>
-<div class="modal-overlay" id="modal">
-  <div class="modal">
-    <h2>Add a firm</h2>
-    <input type="text" id="m-name" placeholder="Firm name" />
-    <select id="m-tier">
-      <option value="1">Tier 1 - Priority</option>
-      <option value="2">Tier 2 - Secondary</option>
-      <option value="3" selected>Tier 3 - Opportunistic</option>
-    </select>
-    <textarea id="m-why" rows="2" placeholder="Why you fit (optional)"></textarea>
-    <input type="text" id="m-contact" placeholder="Contact / submission method (optional)" />
-    <input type="text" id="m-website" placeholder="Website URL (optional)" />
-    <input type="text" id="m-linkedin" placeholder="LinkedIn URL (optional)" />
-    <div class="modal-actions">
-      <button class="btn-cancel" onclick="closeModal()">Cancel</button>
-      <button class="btn-save" onclick="addFirm()">Add firm</button>
-    </div>
-  </div>
-</div>
-<script>
-let firms = [];
-let activeFilter = 'all';
-const STATUS_CONFIG = {
-  'not contacted':   { label: 'Not contacted',  cls: 's-not' },
-  'contacted':       { label: 'Contacted',       cls: 's-contacted' },
-  'in conversation': { label: 'In conversation', cls: 's-conversation' },
-  'placed':          { label: 'Placed',          cls: 's-placed' },
-  'passed':          { label: 'Passed',          cls: 's-passed' },
-};
-const STATUSES = Object.keys(STATUS_CONFIG);
-async function load() { const r = await fetch('/api/firms'); firms = await r.json(); render(); }
-async function patch(id, payload) { await fetch('/api/firms/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); }
-function filtered() {
-  if (activeFilter === 'all') return firms;
-  if (activeFilter === 'tier-1') return firms.filter(f => f.tier === 1);
-  if (activeFilter === 'tier-2') return firms.filter(f => f.tier === 2);
-  if (activeFilter === 'tier-3') return firms.filter(f => f.tier === 3);
-  return firms.filter(f => f.status === activeFilter);
-}
-function render() { renderStats(); renderCards(); }
-function renderStats() {
-  const total = firms.length;
-  const t1 = firms.filter(f => f.tier === 1).length;
-  const contacted = firms.filter(f => f.status !== 'not contacted').length;
-  const active = firms.filter(f => f.status === 'in conversation').length;
-  document.getElementById('stats').innerHTML =
-    '<div class="stat"><div class="stat-label">Total firms</div><div class="stat-val">' + total + '</div></div>' +
-    '<div class="stat"><div class="stat-label">Tier 1 targets</div><div class="stat-val">' + t1 + '</div></div>' +
-    '<div class="stat"><div class="stat-label">Contacted</div><div class="stat-val">' + contacted + '</div></div>' +
-    '<div class="stat"><div class="stat-label">In conversation</div><div class="stat-val">' + active + '</div></div>';
-  document.getElementById('last-updated').textContent = 'Updated ' + new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-}
-function renderCards() {
-  const list = filtered();
-  document.getElementById('cards').innerHTML = list.map(f => {
-    const sc = STATUS_CONFIG[f.status] || STATUS_CONFIG['not contacted'];
-    const links = [f.website && '<a class="link-btn" href="' + f.website + '" target="_blank">Website</a>', f.linkedin && '<a class="link-btn" href="' + f.linkedin + '" target="_blank">LinkedIn</a>'].filter(Boolean).join('');
-    const statusOpts = STATUSES.map(s => '<button class="status-opt ' + (f.status === s ? 'selected' : '') + '" onclick="setStatus(' + f.id + ',\\'' + s + '\\',this)">' + STATUS_CONFIG[s].label + '</button>').join('');
-    return '<div class="card" id="card-' + f.id + '">' +
-      '<div class="card-head" onclick="toggle(' + f.id + ')">' +
-        '<div class="firm-top"><span class="firm-name">' + f.name + '</span><span class="tier-badge t' + f.tier + '">Tier ' + f.tier + '</span></div>' +
-        '<span class="status-badge ' + sc.cls + '">' + sc.label + '</span>' +
-        '<span class="chevron" id="chev-' + f.id + '">&#9660;</span>' +
-      '</div>' +
-      '<div class="card-body" id="body-' + f.id + '">' +
-        '<div class="card-grid">' +
-          '<div><div class="field-label">Why you fit</div><div class="field-val">' + (f.why || '-') + '</div></div>' +
-          '<div><div class="field-label">How to reach them</div><div class="field-val">' + (f.contact || '-') + '</div>' + (links ? '<div class="links">' + links + '</div>' : '') + '</div>' +
-        '</div>' +
-        '<div style="margin-top:14px"><div class="field-label">Status</div><div class="status-row">' + statusOpts + '</div></div>' +
-        '<div class="notes-label">Notes</div>' +
-        '<textarea class="notes-area" id="notes-' + f.id + '" placeholder="Add notes..." onblur="saveNotes(' + f.id + ')">' + (f.notes || '') + '</textarea>' +
-      '</div></div>';
-  }).join('');
-}
-function toggle(id) { const b = document.getElementById('body-' + id); const c = document.getElementById('chev-' + id); const o = b.classList.toggle('open'); c.classList.toggle('open', o); }
-function setStatus(id, status, btn) {
-  const firm = firms.find(f => f.id === id); if (!firm) return;
-  firm.status = status; patch(id, { status });
-  const card = document.getElementById('card-' + id);
-  const sc = STATUS_CONFIG[status];
-  card.querySelector('.status-badge').className = 'status-badge ' + sc.cls;
-  card.querySelector('.status-badge').textContent = sc.label;
-  card.querySelectorAll('.status-opt').forEach(b => b.classList.remove('selected'));
-  btn.classList.add('selected'); renderStats();
-}
-function saveNotes(id) { const val = document.getElementById('notes-' + id).value; const firm = firms.find(f => f.id === id); if (firm) firm.notes = val; patch(id, { notes: val }); }
-document.querySelectorAll('.filter-btn').forEach(btn => { btn.addEventListener('click', () => { document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active')); btn.classList.add('active'); activeFilter = btn.dataset.filter; renderCards(); }); });
-function openModal() { document.getElementById('modal').classList.add('open'); document.getElementById('m-name').focus(); }
-function closeModal() { document.getElementById('modal').classList.remove('open'); }
-async function addFirm() {
-  const name = document.getElementById('m-name').value.trim(); if (!name) return;
-  const body = { name, tier: parseInt(document.getElementById('m-tier').value), why: document.getElementById('m-why').value.trim(), contact: document.getElementById('m-contact').value.trim(), website: document.getElementById('m-website').value.trim(), linkedin: document.getElementById('m-linkedin').value.trim() };
-  const r = await fetch('/api/firms', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-  const firm = await r.json(); firms.push(firm); closeModal(); render();
-  ['m-name','m-why','m-contact','m-website','m-linkedin'].forEach(id => document.getElementById(id).value = '');
-  document.getElementById('m-tier').value = '3';
-}
-document.getElementById('modal').addEventListener('click', e => { if (e.target === document.getElementById('modal')) closeModal(); });
-load();
-</script>
-</body>
-</html>"""
-
-with open('index.js', 'w') as f:
-    f.write(index_js)
-print('index.js written')
-
-with open('public/index.html', 'w') as f:
-    f.write(index_html)
-print('public/index.html written')
-
-print('Done. Now run: git add . && git commit -m "add: app files" && git push')
