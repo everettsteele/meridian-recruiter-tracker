@@ -128,10 +128,10 @@ const SEED_FIRMS = [
     id: 10, tier: 1, name: 'CarterBaldwin Executive Search',
     why: 'Atlanta HQ (Roswell). Leads Technology practice. PE-backed C-suite COO placements. Hunt Scanlon Top 50. Local home-field advantage.',
     status: 'contacted', last_contacted: '2026-03-27', followup_date: '2026-04-03',
-    notes: 'Email sent 3/27. LinkedIn connection pending. Roswell GA office.',
+    notes: 'Email sent 3/27. LinkedIn connection on hold — out of personal notes. Correct LinkedIn URL confirmed.',
     linkedin: 'https://www.linkedin.com/company/carterbaldwin/', website: 'https://carterbaldwin.com',
     contacts: [
-      { id: 1, name: 'Jennifer Sobocinski', title: 'Founding Partner, Technology Practice', email: 'jsobocinski@carterbaldwin.com', linkedin: 'https://www.linkedin.com/in/jennifersobocinski/', last_contacted: '2026-03-27', status: 'emailed', notes: 'Email sent 3/27. LinkedIn connection pending.' }
+      { id: 1, name: 'Jennifer Sobocinski', title: 'Founding Partner, Technology Practice', email: 'jsobocinski@carterbaldwin.com', linkedin: 'https://www.linkedin.com/in/jennifer-poole-sobocinski/', last_contacted: '2026-03-27', status: 'emailed', notes: 'Email sent 3/27. LinkedIn connection on hold — out of personal notes. Correct URL: /jennifer-poole-sobocinski/' }
     ]
   },
 
@@ -274,7 +274,7 @@ const SEED_FIRMS = [
   },
 
   // ============================================================
-  // TIER 3: OPPORTUNISTIC
+  // TIER 3: OPPORTUNISTIC + NETWORK CONTACTS
   // ============================================================
 
   {
@@ -340,6 +340,18 @@ const SEED_FIRMS = [
     linkedin: 'https://www.linkedin.com/company/diversifiedsearchgroup/', website: 'https://diversifiedsearchgroup.com',
     contacts: [
       { id: 1, name: 'Nora Sutherland', title: 'Moved to True Search', email: 'nora.sutherland@divsearch.com', linkedin: 'https://www.linkedin.com/in/nsutherlanddsg/', last_contacted: '2026-03-26', status: 'dead end', notes: 'Bounced. Now at True Search.' }
+    ]
+  },
+
+  // Network contact — not a recruiter
+  {
+    id: 41, tier: 3, name: 'Matt Goggin (Network)',
+    why: 'Atlanta tech executive. First-degree connection. Deep roots in Atlanta IT/VAR community (Veristor, Canvas Systems, Dell EMC advisory). Good source of warm intros to Atlanta tech and PE-adjacent leaders.',
+    status: 'not contacted', last_contacted: null, followup_date: '2026-04-03',
+    notes: 'NOT a recruiter. First-degree LinkedIn connection. Message drafted 3/27 — send via LinkedIn DM only. Ask for introductions to recruiters or companies, not a pitch. Gmail draft saved as reminder.',
+    linkedin: '', website: '',
+    contacts: [
+      { id: 1, name: 'Matt Goggin', title: 'Atlanta tech executive / advisor', email: '', linkedin: 'https://www.linkedin.com/in/matthew-goggin-3202803/', last_contacted: null, status: 'not contacted', notes: 'Send via LinkedIn DM. Message drafted 3/27. Ask for warm intros — do not pitch as if he is a recruiter.' }
     ]
   },
 
