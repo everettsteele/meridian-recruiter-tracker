@@ -33,7 +33,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .topbar-btn{display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:7px;border:1px solid #E5E7EB;background:#fff;font-size:12px;font-weight:500;color:#6B7280;cursor:pointer;transition:all .15s}
 .topbar-btn:hover{background:#F9FAFB;border-color:#D1D5DB;color:#1F2D3D}
 .topbar-btn.spinning svg{animation:spin .7s linear infinite}
+.topbar-btn.run-queue{background:#F97316;color:#fff;border-color:#F97316}
+.topbar-btn.run-queue:hover{background:#ea6c06;border-color:#ea6c06;color:#fff}
+.topbar-btn.run-queue:disabled{opacity:.6;cursor:not-allowed}
 @keyframes spin{to{transform:rotate(360deg)}}
+.toast{position:fixed;bottom:24px;right:24px;background:#1F2D3D;color:#fff;padding:10px 16px;border-radius:8px;font-size:13px;font-weight:500;box-shadow:0 4px 16px rgba(0,0,0,.2);z-index:999;opacity:0;transform:translateY(8px);transition:all .2s}
+.toast.show{opacity:1;transform:translateY(0)}
 .main{padding:20px 24px;flex:1}
 .queue-date{font-size:11px;color:#9CA3AF;margin-bottom:3px;text-transform:uppercase;letter-spacing:.05em}
 .queue-title{font-size:22px;font-weight:700;margin-bottom:4px}
@@ -76,19 +81,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .seg-row:last-child{border-bottom:none}
 .seg-lbl{flex:1;color:#6B7280}
 .seg-val{font-weight:600;color:#1F2D3D}
-/* Vertical stacked bar chart */
 .chart-wrap{display:flex;align-items:flex-end;gap:20px;height:160px;padding-bottom:28px;position:relative;overflow-x:auto}
 .chart-col{display:flex;flex-direction:column;align-items:center;gap:0;flex-shrink:0}
 .chart-bar{width:40px;display:flex;flex-direction:column-reverse;border-radius:4px 4px 0 0;overflow:hidden}
 .chart-seg{width:100%;flex-shrink:0}
 .chart-label{font-size:10px;color:#9CA3AF;margin-top:6px;white-space:nowrap}
 .chart-count{font-size:11px;font-weight:600;color:#1F2D3D;margin-bottom:3px}
-.chart-y-lines{position:absolute;left:0;right:0;top:0;bottom:28px;pointer-events:none}
-.chart-y-line{position:absolute;left:0;right:0;border-top:1px dashed #F3F4F6}
 .legend{display:flex;gap:16px;margin-top:14px}
 .legend-item{display:flex;align-items:center;gap:5px;font-size:11px;color:#6B7280}
 .legend-dot{width:10px;height:10px;border-radius:2px;flex-shrink:0}
-/* List */
 .controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
 .search-box{flex:1;min-width:160px;padding:7px 12px;border:1px solid #E5E7EB;border-radius:8px;font-size:13px;outline:none}
 .search-box:focus{border-color:#F97316}
@@ -141,6 +142,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 </style>
 </head>
 <body>
+
+<div id="toast" class="toast"></div>
 
 <div id="login-view" class="login-wrap">
   <div class="login-box">
@@ -203,6 +206,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
         <div class="topbar-sub" id="topbar-sub">Today's outreach and follow-ups</div>
       </div>
       <div class="topbar-actions">
+        <button class="topbar-btn run-queue" id="run-queue-btn" onclick="runQueue()">
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          Run Queue
+        </button>
         <button class="topbar-btn" id="refresh-btn" onclick="refreshData()">
           <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
           Refresh
@@ -218,6 +225,11 @@ let TOKEN='',DATA=[],CEOs=[],VCs=[],STATS=null,FILTER='all',TAB='queue';
 const TODAY=new Date().toISOString().split('T')[0];
 const TITLES={queue:['Morning Queue',"Today's outreach and follow-ups"],dashboard:['Dashboard','Outreach performance and activity'],recruiters:['Recruiters','Executive search firms'],ceos:['Direct CEO / Network','Referral asks and warm network contacts'],vcs:['VC Firms','Portfolio COO and operating partner outreach']};
 
+function toast(msg, dur=3000){
+  const el=document.getElementById('toast');
+  el.textContent=msg;el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'),dur);
+}
 function setStatus(m){const e=document.getElementById('login-status');if(e)e.textContent=m;}
 async function init(){
   setStatus('Connecting...');
@@ -252,6 +264,19 @@ async function refreshData(){
   btn.classList.add('spinning');btn.disabled=true;
   await loadAll();
   btn.classList.remove('spinning');btn.disabled=false;
+}
+async function runQueue(){
+  const btn=document.getElementById('run-queue-btn');
+  btn.disabled=true;btn.textContent='Running...';
+  try{
+    const r=await fetch('/api/cron/run',{method:'POST',headers:{'x-auth-token':TOKEN}}).then(x=>x.json());
+    await loadAll();
+    toast(`Queue loaded \u2014 ${r.totalDrafted} contacts drafted across all pillars`);
+  }catch(e){
+    toast('Failed to run queue. Try refreshing.');
+  }
+  btn.disabled=false;
+  btn.innerHTML='<svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg> Run Queue';
 }
 function showApp(){
   document.getElementById('login-view').style.display='none';
@@ -290,7 +315,7 @@ function renderQueue(){
   const totalMin=Math.round(sendNow.length*0.4+followUp.length*1.5);
   let html=`<div class="queue-date">${dateStr}</div><div class="queue-title">Morning Queue</div><div class="queue-sub">${sendNow.length} to send &nbsp;\u00b7&nbsp; ${followUp.length} follow-ups &nbsp;\u00b7&nbsp; ~${totalMin} min</div>`;
   html+=`<div class="section-header"><div class="section-title">Send Now</div><div class="section-count">${sendNow.length} drafts waiting</div></div>`;
-  if(!sendNow.length)html+='<div class="empty" style="padding:20px 0">No drafts queued.</div>';
+  if(!sendNow.length)html+='<div class="empty" style="padding:20px 0">No drafts queued. Hit Run Queue to load the next batch.</div>';
   else['recruiter','ceo','vc'].forEach(p=>{sendNow.filter(x=>x._pillar===p).forEach(item=>{const c=(item.contacts||[]).find(c=>c.status==='draft')||(item.contacts||[])[0]||{};html+=`<div class="queue-card"><span class="pillar-tag pillar-${p}">${item._label}</span><div class="queue-info"><div class="queue-name">${item.name}</div><div class="queue-contact">${c.name||''}</div><div class="queue-email">${c.email||''}</div></div><button class="btn btn-send" onclick="markSent('${item._endpoint}',${item.id},this)">Mark Sent</button></div>`;});});
   html+=`<div class="divider"></div><div class="section-header"><div class="section-title">Follow Up Today</div><div class="section-count">${followUp.length} due</div></div>`;
   if(!followUp.length)html+='<div class="empty" style="padding:20px 0">No follow-ups due today.</div>';
@@ -316,8 +341,7 @@ function renderDashboard(){
   const {segments,daily,totals}=STATS;
   const overallRate=totals.contacted>0?Math.round((totals.inConversation/totals.contacted)*100):0;
   const maxD=daily.length?Math.max(...daily.map(d=>d.total),1):1;
-  const CHART_H=120; // px for max bar height
-
+  const CHART_H=120;
   let html=`<div class="stats">
     <div class="stat"><div class="stat-label">Total Outreach</div><div class="stat-val">${totals.contacted}</div><div class="stat-sub">sent & delivered</div></div>
     <div class="stat"><div class="stat-label">In Conversation</div><div class="stat-val">${totals.inConversation}</div><div class="stat-sub">active replies</div></div>
@@ -325,13 +349,10 @@ function renderDashboard(){
     <div class="stat"><div class="stat-label">Drafts Ready</div><div class="stat-val">${totals.drafts}</div><div class="stat-sub">queued to send</div></div>
     <div class="stat"><div class="stat-label">Bounced</div><div class="stat-val">${totals.bounced}</div><div class="stat-sub">need alt contact</div></div>
   </div>`;
-
   const bc=['#3B82F6','#F97316','#10B981'];
   html+=`<div class="dash-grid">`;
   segments.forEach((s,i)=>{const pct=s.contacted>0?Math.round((s.conv/s.contacted)*100):0;html+=`<div class="dash-card"><div class="dash-card-title">${s.label}</div><div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:14px"><div><div class="big-num">${s.contacted}</div><div class="big-sub">contacted</div></div><div class="rate-circle" style="border-color:${bc[i]}"><div class="rate-pct">${pct}%</div><div class="rate-lbl">replies</div></div></div><div class="seg-row"><span class="seg-lbl">In conversation</span><span class="seg-val">${s.conv}</span></div><div class="seg-row"><span class="seg-lbl">Drafts pending</span><span class="seg-val" style="color:#8B5CF6">${s.drafts}</span></div><div class="seg-row"><span class="seg-lbl">Bounced</span><span class="seg-val" style="color:#F59E0B">${s.bounced}</span></div></div>`;});
   html+=`</div>`;
-
-  // Vertical stacked bar chart: X=date columns, Y=count, segments stacked bottom-to-top
   html+=`<div class="dash-card"><div class="dash-card-title">Daily Outreach Activity</div>`;
   if(!daily.length){html+='<div style="color:#9CA3AF;font-size:13px">No activity yet.</div>';}
   else{
@@ -340,17 +361,9 @@ function renderDashboard(){
       const totalH=Math.round((d.total/maxD)*CHART_H);
       const rH=d.total>0?Math.round((d.recruiters/d.total)*totalH):0;
       const cH=d.total>0?Math.round((d.ceos/d.total)*totalH):0;
-      const vH=totalH-rH-cH; // vcs get remainder to avoid rounding gaps
+      const vH=totalH-rH-cH;
       const label=new Date(d.date+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});
-      html+=`<div class="chart-col">
-        <div class="chart-count">${d.total}</div>
-        <div class="chart-bar" style="height:${totalH}px">
-          ${d.vcs?`<div class="chart-seg" style="height:${vH}px;background:#10B981" title="VCs: ${d.vcs}"></div>`:''}
-          ${d.ceos?`<div class="chart-seg" style="height:${cH}px;background:#F97316" title="CEOs: ${d.ceos}"></div>`:''}
-          ${d.recruiters?`<div class="chart-seg" style="height:${rH}px;background:#3B82F6" title="Recruiters: ${d.recruiters}"></div>`:''}
-        </div>
-        <div class="chart-label">${label}</div>
-      </div>`;
+      html+=`<div class="chart-col"><div class="chart-count">${d.total}</div><div class="chart-bar" style="height:${totalH}px">${d.vcs?`<div class="chart-seg" style="height:${vH}px;background:#10B981" title="VCs: ${d.vcs}"></div>`:''}${d.ceos?`<div class="chart-seg" style="height:${cH}px;background:#F97316" title="CEOs: ${d.ceos}"></div>`:''}${d.recruiters?`<div class="chart-seg" style="height:${rH}px;background:#3B82F6" title="Recruiters: ${d.recruiters}"></div>`:''}</div><div class="chart-label">${label}</div></div>`;
     });
     html+=`</div><div class="legend"><div class="legend-item"><div class="legend-dot" style="background:#3B82F6"></div>Recruiters</div><div class="legend-item"><div class="legend-dot" style="background:#F97316"></div>CEOs</div><div class="legend-item"><div class="legend-dot" style="background:#10B981"></div>VCs</div></div>`;
   }
