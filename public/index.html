@@ -32,11 +32,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .topbar-title{font-size:15px;font-weight:600;color:#1F2D3D}
 .topbar-sub{font-size:12px;color:#9CA3AF}
 .topbar-actions{display:flex;align-items:center;gap:8px}
-.refresh-btn{display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:7px;border:1px solid #E5E7EB;background:#fff;font-size:12px;font-weight:500;color:#6B7280;cursor:pointer;transition:all .15s}
-.refresh-btn:hover{background:#F9FAFB;border-color:#D1D5DB;color:#1F2D3D}
-.refresh-btn.spinning svg{animation:spin .7s linear infinite}
+.topbar-btn{display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:7px;border:1px solid #E5E7EB;background:#fff;font-size:12px;font-weight:500;color:#6B7280;cursor:pointer;transition:all .15s}
+.topbar-btn:hover{background:#F9FAFB;border-color:#D1D5DB;color:#1F2D3D}
+.topbar-btn.spinning svg{animation:spin .7s linear infinite}
+.topbar-btn.danger{color:#EF4444;border-color:#FECACA}
+.topbar-btn.danger:hover{background:#FEF2F2}
 @keyframes spin{to{transform:rotate(360deg)}}
 .main{padding:20px 24px;flex:1}
+/* Queue */
 .queue-date{font-size:11px;color:#9CA3AF;margin-bottom:3px;text-transform:uppercase;letter-spacing:.05em}
 .queue-title{font-size:22px;font-weight:700;margin-bottom:4px}
 .queue-sub{font-size:13px;color:#6B7280;margin-bottom:20px}
@@ -60,11 +63,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .btn{padding:6px 14px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;border:none;white-space:nowrap;transition:all .15s}
 .btn-send{background:#F97316;color:#fff}.btn-send:hover{background:#ea6c06}
 .btn-followup{background:#F3F4F6;color:#1F2D3D}.btn-followup:hover{background:#E5E7EB}
+/* Stats */
 .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin-bottom:18px}
 .stat{background:#fff;border-radius:10px;padding:12px 14px;border:1px solid #E5E7EB}
 .stat-label{font-size:10px;color:#9CA3AF;text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px}
 .stat-val{font-size:24px;font-weight:600;color:#1F2D3D}
 .stat-sub{font-size:10px;color:#9CA3AF;margin-top:2px}
+/* Dashboard */
 .dash-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:16px}
 @media(max-width:900px){.dash-grid{grid-template-columns:1fr}}
 .dash-card{background:#fff;border:1px solid #E5E7EB;border-radius:10px;padding:18px}
@@ -78,15 +83,20 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .seg-row:last-child{border-bottom:none}
 .seg-lbl{flex:1;color:#6B7280}
 .seg-val{font-weight:600;color:#1F2D3D}
-.daily-row{display:flex;align-items:center;gap:10px;margin-bottom:7px;font-size:12px}
-.daily-date{color:#9CA3AF;width:58px;flex-shrink:0}
-.daily-bars{flex:1;display:flex;gap:3px;align-items:flex-end;height:22px}
-.daily-bar{border-radius:2px 2px 0 0;min-width:8px}
-.bar-blue{background:#3B82F6}.bar-orange{background:#F97316}.bar-green{background:#10B981}
-.daily-total{font-weight:600;color:#1F2D3D;width:24px;text-align:right}
-.legend{display:flex;gap:14px;margin-top:12px}
+/* Stacked bar chart */
+.daily-row{display:flex;align-items:center;gap:12px;margin-bottom:8px;font-size:12px}
+.daily-date{color:#9CA3AF;width:52px;flex-shrink:0;text-align:right}
+.daily-track{flex:1;height:22px;background:#F3F4F6;border-radius:4px;overflow:hidden;display:flex}
+.daily-fill{display:flex;height:100%;transition:width .3s}
+.daily-seg{height:100%;flex-shrink:0}
+.daily-total{font-weight:600;color:#1F2D3D;width:24px;text-align:left;flex-shrink:0}
+.seg-rec{background:#3B82F6}
+.seg-ceo{background:#F97316}
+.seg-vc{background:#10B981}
+.legend{display:flex;gap:16px;margin-top:12px}
 .legend-item{display:flex;align-items:center;gap:5px;font-size:11px;color:#6B7280}
 .legend-dot{width:10px;height:10px;border-radius:2px;flex-shrink:0}
+/* List / Cards */
 .controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
 .search-box{flex:1;min-width:160px;padding:7px 12px;border:1px solid #E5E7EB;border-radius:8px;font-size:13px;outline:none}
 .search-box:focus{border-color:#F97316}
@@ -125,6 +135,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .sec-lbl{font-size:10px;font-weight:700;color:#9CA3AF;text-transform:uppercase;letter-spacing:.06em;margin:12px 0 6px}
 .divider{height:1px;background:#F3F4F6;margin:16px 0}
 .empty{text-align:center;padding:52px 20px;color:#9CA3AF}
+/* Login */
 .login-wrap{display:flex;align-items:center;justify-content:center;min-height:100vh;background:#F5F7FA}
 .login-box{background:#fff;border-radius:14px;padding:40px;max-width:380px;width:100%;border:1px solid #E5E7EB;box-shadow:0 4px 24px rgba(0,0,0,.08)}
 .login-logo{display:flex;align-items:center;gap:9px;margin-bottom:20px}
@@ -201,7 +212,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
         <div class="topbar-sub" id="topbar-sub">Today's outreach and follow-ups</div>
       </div>
       <div class="topbar-actions">
-        <button class="refresh-btn" id="refresh-btn" onclick="refreshData()">
+        <button class="topbar-btn" id="refresh-btn" onclick="refreshData()">
           <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
           Refresh
         </button>
@@ -216,7 +227,7 @@ let TOKEN='', DATA=[], CEOs=[], VCs=[], STATS=null;
 let FILTER='all', TAB='queue';
 const TODAY=new Date().toISOString().split('T')[0];
 const TITLES={
-  queue:['Morning Queue','Today\'s outreach and follow-ups'],
+  queue:['Morning Queue',"Today's outreach and follow-ups"],
   dashboard:['Dashboard','Outreach performance and activity'],
   recruiters:['Recruiters','Executive search firms'],
   ceos:['Direct CEO / Network','Referral asks and warm network contacts'],
@@ -255,11 +266,9 @@ async function loadAll(){
 }
 async function refreshData(){
   const btn=document.getElementById('refresh-btn');
-  btn.classList.add('spinning');
-  btn.disabled=true;
+  btn.classList.add('spinning');btn.disabled=true;
   await loadAll();
-  btn.classList.remove('spinning');
-  btn.disabled=false;
+  btn.classList.remove('spinning');btn.disabled=false;
 }
 function showApp(){
   document.getElementById('login-view').style.display='none';
@@ -303,19 +312,21 @@ function renderQueue(){
   const totalMin=Math.round(sendNow.length*0.4+followUp.length*1.5);
   let html=`<div class="queue-date">${dateStr}</div><div class="queue-title">Morning Queue</div><div class="queue-sub">${sendNow.length} to send &nbsp;\u00b7&nbsp; ${followUp.length} follow-ups &nbsp;\u00b7&nbsp; ~${totalMin} min</div>`;
   html+=`<div class="section-header"><div class="section-title">Send Now</div><div class="section-count">${sendNow.length} drafts waiting</div></div>`;
-  if(!sendNow.length){html+='<div class="empty" style="padding:20px 0">No drafts queued.</div>';}
-  else{['recruiter','ceo','vc'].forEach(p=>{sendNow.filter(x=>x._pillar===p).forEach(item=>{
-    const c=(item.contacts||[]).find(c=>c.status==='draft')||(item.contacts||[])[0]||{};
-    html+=`<div class="queue-card"><span class="pillar-tag pillar-${p}">${item._label}</span><div class="queue-info"><div class="queue-name">${item.name}</div><div class="queue-contact">${c.name||''}</div><div class="queue-email">${c.email||''}</div></div><button class="btn btn-send" onclick="markSent('${item._endpoint}',${item.id},this)">Mark Sent</button></div>`;
-  });});}
+  if(!sendNow.length)html+='<div class="empty" style="padding:20px 0">No drafts queued.</div>';
+  else ['recruiter','ceo','vc'].forEach(p=>{
+    sendNow.filter(x=>x._pillar===p).forEach(item=>{
+      const c=(item.contacts||[]).find(c=>c.status==='draft')||(item.contacts||[])[0]||{};
+      html+=`<div class="queue-card"><span class="pillar-tag pillar-${p}">${item._label}</span><div class="queue-info"><div class="queue-name">${item.name}</div><div class="queue-contact">${c.name||''}</div><div class="queue-email">${c.email||''}</div></div><button class="btn btn-send" onclick="markSent('${item._endpoint}',${item.id},this)">Mark Sent</button></div>`;
+    });
+  });
   html+=`<div class="divider"></div><div class="section-header"><div class="section-title">Follow Up Today</div><div class="section-count">${followUp.length} due</div></div>`;
-  if(!followUp.length){html+='<div class="empty" style="padding:20px 0">No follow-ups due today.</div>';}
-  else{followUp.forEach(item=>{
+  if(!followUp.length)html+='<div class="empty" style="padding:20px 0">No follow-ups due today.</div>';
+  else followUp.forEach(item=>{
     const c=(item.contacts||[])[0]||{};
     const da=item.last_contacted?Math.floor((new Date()-new Date(item.last_contacted))/864e5):null;
     const ov=item.followup_date<TODAY;
     html+=`<div class="queue-card ${ov?'followup-overdue':'followup'}"><span class="pillar-tag pillar-${item._pillar}">${item._label}</span><div class="queue-info"><div class="queue-name">${item.name}</div><div class="queue-contact">${c.name||''} &nbsp;\u00b7&nbsp; ${c.email||''}</div><div class="queue-meta">Contacted ${da!=null?da+' days ago':'\u2014'} &nbsp;\u00b7&nbsp; Due ${item.followup_date}</div></div><button class="btn btn-followup" onclick="logFollowup('${item._endpoint}',${item.id})">Log</button></div>`;
-  });}
+  });
   document.getElementById('main-content').innerHTML=html;
 }
 async function markSent(endpoint,id,btn){
@@ -337,6 +348,7 @@ function renderDashboard(){
   const {segments,daily,totals}=STATS;
   const overallRate=totals.contacted>0?Math.round((totals.inConversation/totals.contacted)*100):0;
   const maxD=daily.length?Math.max(...daily.map(d=>d.total),1):1;
+
   let html=`<div class="stats">
     <div class="stat"><div class="stat-label">Total Outreach</div><div class="stat-val">${totals.contacted}</div><div class="stat-sub">sent & delivered</div></div>
     <div class="stat"><div class="stat-label">In Conversation</div><div class="stat-val">${totals.inConversation}</div><div class="stat-sub">active replies</div></div>
@@ -344,21 +356,43 @@ function renderDashboard(){
     <div class="stat"><div class="stat-label">Drafts Ready</div><div class="stat-val">${totals.drafts}</div><div class="stat-sub">queued to send</div></div>
     <div class="stat"><div class="stat-label">Bounced</div><div class="stat-val">${totals.bounced}</div><div class="stat-sub">need alt contact</div></div>
   </div>`;
+
   html+=`<div class="dash-grid">`;
   const bc=['#3B82F6','#F97316','#10B981'];
   segments.forEach((s,i)=>{
     const pct=s.contacted>0?Math.round((s.conv/s.contacted)*100):0;
     html+=`<div class="dash-card"><div class="dash-card-title">${s.label}</div><div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:14px"><div><div class="big-num">${s.contacted}</div><div class="big-sub">contacted</div></div><div class="rate-circle" style="border-color:${bc[i]}"><div class="rate-pct">${pct}%</div><div class="rate-lbl">replies</div></div></div><div class="seg-row"><span class="seg-lbl">In conversation</span><span class="seg-val">${s.conv}</span></div><div class="seg-row"><span class="seg-lbl">Drafts pending</span><span class="seg-val" style="color:#8B5CF6">${s.drafts}</span></div><div class="seg-row"><span class="seg-lbl">Bounced</span><span class="seg-val" style="color:#F59E0B">${s.bounced}</span></div></div>`;
   });
-  html+=`</div><div class="dash-card"><div class="dash-card-title">Daily Outreach Activity</div>`;
+  html+=`</div>`;
+
+  // Stacked horizontal bar chart
+  html+=`<div class="dash-card"><div class="dash-card-title">Daily Outreach Activity</div>`;
   if(!daily.length){html+='<div style="color:#9CA3AF;font-size:13px">No activity yet.</div>';}
   else{
     daily.forEach(d=>{
+      const fillPct=(d.total/maxD)*100;
+      // Within the fill, each segment is proportional to its count out of the day total
+      const rPct=d.total>0?(d.recruiters/d.total)*100:0;
+      const cPct=d.total>0?(d.ceos/d.total)*100:0;
+      const vPct=d.total>0?(d.vcs/d.total)*100:0;
       const label=new Date(d.date+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});
-      const sc=h=>Math.max(4,Math.round((h/maxD)*24)),w=h=>Math.round((h/maxD)*100);
-      html+=`<div class="daily-row"><div class="daily-date">${label}</div><div class="daily-bars">${d.recruiters?`<div class="daily-bar bar-blue" style="width:${w(d.recruiters)}px;height:${sc(d.recruiters)}px" title="Recruiters: ${d.recruiters}"></div>`:''} ${d.ceos?`<div class="daily-bar bar-orange" style="width:${w(d.ceos)}px;height:${sc(d.ceos)}px" title="CEOs: ${d.ceos}"></div>`:''} ${d.vcs?`<div class="daily-bar bar-green" style="width:${w(d.vcs)}px;height:${sc(d.vcs)}px" title="VCs: ${d.vcs}"></div>`:''}</div><div class="daily-total">${d.total}</div></div>`;
+      html+=`<div class="daily-row">
+        <div class="daily-date">${label}</div>
+        <div class="daily-track">
+          <div class="daily-fill" style="width:${fillPct.toFixed(1)}%">
+            ${d.recruiters?`<div class="daily-seg seg-rec" style="width:${rPct.toFixed(1)}%" title="Recruiters: ${d.recruiters}"></div>`:''}
+            ${d.ceos?`<div class="daily-seg seg-ceo" style="width:${cPct.toFixed(1)}%" title="CEOs: ${d.ceos}"></div>`:''}
+            ${d.vcs?`<div class="daily-seg seg-vc" style="width:${vPct.toFixed(1)}%" title="VCs: ${d.vcs}"></div>`:''}
+          </div>
+        </div>
+        <div class="daily-total">${d.total}</div>
+      </div>`;
     });
-    html+=`<div class="legend"><div class="legend-item"><div class="legend-dot" style="background:#3B82F6"></div>Recruiters</div><div class="legend-item"><div class="legend-dot" style="background:#F97316"></div>CEOs</div><div class="legend-item"><div class="legend-dot" style="background:#10B981"></div>VCs</div></div>`;
+    html+=`<div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:#3B82F6"></div>Recruiters</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#F97316"></div>CEOs</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#10B981"></div>VCs</div>
+    </div>`;
   }
   html+=`</div>`;
   document.getElementById('main-content').innerHTML=html;

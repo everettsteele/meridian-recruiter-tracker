@@ -7,36 +7,45 @@ const PORT = process.env.PORT || 3000;
 const DATA_DIR = path.join(__dirname, 'data');
 const PASSWORD = process.env.AUTH_PASSWORD || '';
 
-const PATHS = {
-  firms: path.join(DATA_DIR, 'tracker.json'),
-  ceos:  path.join(DATA_DIR, 'ceos.json'),
-  vcs:   path.join(DATA_DIR, 'vcs.json'),
-};
 const SEEDS = {
   firms: path.join(DATA_DIR, 'seed_firms.json'),
   ceos:  path.join(DATA_DIR, 'seed_ceos.json'),
   vcs:   path.join(DATA_DIR, 'seed_vcs.json'),
 };
+const OVERRIDES_PATH = path.join(DATA_DIR, 'overrides.json');
 
 try { if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true }); } catch(e){}
+
+// Seeds are always the canonical contact list.
+// Overrides store runtime state (status, notes, followup_date, last_contacted).
+// Overrides survive deploys via Railway volume. Seeds update on every deploy.
 
 function readSeed(key) {
   try { return JSON.parse(fs.readFileSync(SEEDS[key], 'utf8')); } catch(e) { return []; }
 }
-function loadDB(key) {
+
+function loadOverrides() {
   try {
-    if (fs.existsSync(PATHS[key])) return JSON.parse(fs.readFileSync(PATHS[key], 'utf8'));
+    if (fs.existsSync(OVERRIDES_PATH)) return JSON.parse(fs.readFileSync(OVERRIDES_PATH, 'utf8'));
   } catch(e) {}
-  const seed = readSeed(key);
-  try { fs.writeFileSync(PATHS[key], JSON.stringify(seed, null, 2)); } catch(e) {}
-  return seed;
-}
-function saveDB(key, data) {
-  try { fs.writeFileSync(PATHS[key], JSON.stringify(data, null, 2)); } catch(e) {}
+  return { firms: {}, ceos: {}, vcs: {} };
 }
 
-['firms','ceos','vcs'].forEach(k => loadDB(k));
-console.log('DBs ready');
+function saveOverrides(overrides) {
+  try { fs.writeFileSync(OVERRIDES_PATH, JSON.stringify(overrides, null, 2)); } catch(e) {}
+}
+
+function getDB(key) {
+  const seed = readSeed(key);
+  const overrides = loadOverrides();
+  const ko = overrides[key] || {};
+  return seed.map(item => {
+    const o = ko[String(item.id)];
+    return o ? { ...item, ...o } : item;
+  });
+}
+
+console.log('HopeSpot ready — seeds always current, overrides persist on volume');
 
 const sessions = new Set();
 function requireAuth(req, res, next) {
@@ -57,53 +66,48 @@ app.post('/api/login', (req, res) => {
 });
 
 app.get('/api/auth-required', (req, res) => res.json({ required: !!PASSWORD }));
-app.get('/api/firms', requireAuth, (req, res) => res.json(loadDB('firms')));
-app.get('/api/ceos',  requireAuth, (req, res) => res.json(loadDB('ceos')));
-app.get('/api/vcs',   requireAuth, (req, res) => res.json(loadDB('vcs')));
+app.get('/api/firms', requireAuth, (req, res) => res.json(getDB('firms')));
+app.get('/api/ceos',  requireAuth, (req, res) => res.json(getDB('ceos')));
+app.get('/api/vcs',   requireAuth, (req, res) => res.json(getDB('vcs')));
 
 app.get('/api/stats', requireAuth, (req, res) => {
-  const firms = loadDB('firms');
-  const ceos  = loadDB('ceos');
-  const vcs   = loadDB('vcs');
+  const firms = getDB('firms');
+  const ceos  = getDB('ceos');
+  const vcs   = getDB('vcs');
 
   function seg(arr, label) {
-    const total     = arr.length;
     const contacted = arr.filter(x => ['contacted','in conversation'].includes(x.status)).length;
     const drafts    = arr.filter(x => x.status === 'draft').length;
     const conv      = arr.filter(x => x.status === 'in conversation').length;
     const bounced   = arr.filter(x => x.status === 'bounced' || (x.contacts||[]).some(c => c.status === 'bounced')).length;
-    const passed    = arr.filter(x => x.status === 'passed').length;
-    const rateNum   = contacted > 0 ? Math.round((conv / contacted) * 100) : 0;
-    return { label, total, contacted, drafts, conv, bounced, passed, responseRate: rateNum };
+    return { label, total: arr.length, contacted, drafts, conv, bounced, responseRate: contacted > 0 ? Math.round((conv/contacted)*100) : 0 };
   }
 
-  // Build daily activity from last_contacted dates across all records
-  const allItems = [...firms, ...ceos, ...vcs];
+  const allItems = [
+    ...firms.map(x => ({ ...x, _key: 'firms' })),
+    ...ceos.map(x  => ({ ...x, _key: 'ceos' })),
+    ...vcs.map(x   => ({ ...x, _key: 'vcs' })),
+  ];
+
   const byDate = {};
   allItems.forEach(item => {
     if (!item.last_contacted) return;
     const d = item.last_contacted;
     if (!byDate[d]) byDate[d] = { recruiters: 0, ceos: 0, vcs: 0, total: 0 };
-    const isFirm = firms.includes(item);
-    const isCeo  = ceos.includes(item);
-    const isVc   = vcs.includes(item);
     if (['contacted','in conversation'].includes(item.status)) {
-      if (isFirm) byDate[d].recruiters++;
-      if (isCeo)  byDate[d].ceos++;
-      if (isVc)   byDate[d].vcs++;
+      if (item._key === 'firms') byDate[d].recruiters++;
+      if (item._key === 'ceos')  byDate[d].ceos++;
+      if (item._key === 'vcs')   byDate[d].vcs++;
       byDate[d].total++;
     }
   });
+
   const daily = Object.entries(byDate)
     .sort(([a],[b]) => a > b ? 1 : -1)
     .map(([date, counts]) => ({ date, ...counts }));
 
   res.json({
-    segments: [
-      seg(firms, 'Recruiters'),
-      seg(ceos,  'Direct CEO'),
-      seg(vcs,   'VC Firms'),
-    ],
+    segments: [seg(firms,'Recruiters'), seg(ceos,'Direct CEO'), seg(vcs,'VC Firms')],
     daily,
     totals: {
       contacted: allItems.filter(x => ['contacted','in conversation'].includes(x.status)).length,
@@ -119,13 +123,22 @@ function makePatch(key) {
   return (req, res) => {
     try {
       const id = parseInt(req.params.id);
-      const data = loadDB(key);
-      const idx = data.findIndex(f => f.id === id);
-      if (idx === -1) return res.status(404).json({ error: 'Not found' });
-      ['status','notes','followup_date'].forEach(k => { if (req.body[k] !== undefined) data[idx][k] = req.body[k]; });
+      const seed = readSeed(key);
+      const item = seed.find(x => x.id === id);
+      if (!item) return res.status(404).json({ error: 'Not found' });
+
+      const overrides = loadOverrides();
+      if (!overrides[key]) overrides[key] = {};
+      const existing = overrides[key][String(id)] || {};
+      const updated = { ...existing };
+
+      ['status','notes','followup_date'].forEach(k => { if (req.body[k] !== undefined) updated[k] = req.body[k]; });
       if (req.body.status && !['not contacted','draft'].includes(req.body.status))
-        data[idx].last_contacted = new Date().toISOString().split('T')[0];
-      saveDB(key, data); res.json(data[idx]);
+        updated.last_contacted = new Date().toISOString().split('T')[0];
+
+      overrides[key][String(id)] = updated;
+      saveOverrides(overrides);
+      res.json({ ...item, ...updated });
     } catch(e) { res.status(500).json({ error: e.message }); }
   };
 }
@@ -134,30 +147,38 @@ app.patch('/api/firms/:id', requireAuth, makePatch('firms'));
 app.patch('/api/ceos/:id',  requireAuth, makePatch('ceos'));
 app.patch('/api/vcs/:id',   requireAuth, makePatch('vcs'));
 
+// Clear all overrides — resets status back to seed defaults
+app.post('/api/reseed', requireAuth, (req, res) => {
+  saveOverrides({ firms: {}, ceos: {}, vcs: {} });
+  res.json({ ok: true, message: 'Overrides cleared. All statuses reset to seed defaults.' });
+});
+
 app.post('/api/sync', requireAuth, (req, res) => {
   const updates = req.body.updates || [];
   if (!updates.length) return res.json({ ok: true, changed: 0 });
   let changed = 0;
+  const overrides = loadOverrides();
   ['firms','ceos','vcs'].forEach(key => {
-    const data = loadDB(key);
-    let dirty = false;
-    data.forEach(item => {
+    const seed = readSeed(key);
+    seed.forEach(item => {
       (item.contacts||[]).forEach(c => {
         const match = updates.find(u => u.email && c.email && u.email.toLowerCase() === c.email.toLowerCase());
         if (!match) return;
-        if (match.status) { c.status = match.status; item.status = match.status; }
+        if (!overrides[key]) overrides[key] = {};
+        const existing = overrides[key][String(item.id)] || {};
+        const updated = { ...existing };
+        if (match.status) updated.status = match.status;
         if (match.note) {
           const ts = new Date().toLocaleDateString('en-US',{month:'short',day:'numeric'});
-          const line = '['+ts+'] '+match.note;
-          item.notes = item.notes ? item.notes+'\n'+line : line;
-          c.notes = c.notes ? c.notes+'\n'+line : line;
+          updated.notes = updated.notes ? updated.notes+'\n['+ts+'] '+match.note : '['+ts+'] '+match.note;
         }
-        item.last_contacted = new Date().toISOString().split('T')[0];
-        dirty = true; changed++;
+        updated.last_contacted = new Date().toISOString().split('T')[0];
+        overrides[key][String(item.id)] = updated;
+        changed++;
       });
     });
-    if (dirty) saveDB(key, data);
   });
+  saveOverrides(overrides);
   res.json({ ok: true, changed });
 });
 
