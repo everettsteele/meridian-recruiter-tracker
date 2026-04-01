@@ -22,9 +22,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .nav-item svg{flex-shrink:0;opacity:.7}
 .nav-item.active svg{opacity:1}
 .nav-badge{margin-left:auto;min-width:18px;height:18px;background:rgba(255,255,255,.15);color:#fff;font-size:10px;font-weight:700;border-radius:9px;display:inline-flex;align-items:center;justify-content:center;padding:0 5px}
-.nav-badge.urgent{background:#EF4444}
-.nav-badge.blue{background:#3B82F6}
-.nav-badge.green{background:#10B981}
+.nav-badge.urgent{background:#EF4444}.nav-badge.blue{background:#3B82F6}.nav-badge.green{background:#10B981}
 .sidebar-footer{padding:14px 20px;border-top:1px solid rgba(255,255,255,.08);font-size:10px;color:rgba(255,255,255,.2)}
 .content-area{flex:1;overflow-y:auto;display:flex;flex-direction:column}
 .topbar{background:#fff;border-bottom:1px solid #E5E7EB;padding:0 24px;display:flex;align-items:center;justify-content:space-between;height:52px;flex-shrink:0;position:sticky;top:0;z-index:50}
@@ -35,11 +33,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .topbar-btn{display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:7px;border:1px solid #E5E7EB;background:#fff;font-size:12px;font-weight:500;color:#6B7280;cursor:pointer;transition:all .15s}
 .topbar-btn:hover{background:#F9FAFB;border-color:#D1D5DB;color:#1F2D3D}
 .topbar-btn.spinning svg{animation:spin .7s linear infinite}
-.topbar-btn.danger{color:#EF4444;border-color:#FECACA}
-.topbar-btn.danger:hover{background:#FEF2F2}
 @keyframes spin{to{transform:rotate(360deg)}}
 .main{padding:20px 24px;flex:1}
-/* Queue */
 .queue-date{font-size:11px;color:#9CA3AF;margin-bottom:3px;text-transform:uppercase;letter-spacing:.05em}
 .queue-title{font-size:22px;font-weight:700;margin-bottom:4px}
 .queue-sub{font-size:13px;color:#6B7280;margin-bottom:20px}
@@ -63,13 +58,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .btn{padding:6px 14px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;border:none;white-space:nowrap;transition:all .15s}
 .btn-send{background:#F97316;color:#fff}.btn-send:hover{background:#ea6c06}
 .btn-followup{background:#F3F4F6;color:#1F2D3D}.btn-followup:hover{background:#E5E7EB}
-/* Stats */
 .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin-bottom:18px}
 .stat{background:#fff;border-radius:10px;padding:12px 14px;border:1px solid #E5E7EB}
 .stat-label{font-size:10px;color:#9CA3AF;text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px}
 .stat-val{font-size:24px;font-weight:600;color:#1F2D3D}
 .stat-sub{font-size:10px;color:#9CA3AF;margin-top:2px}
-/* Dashboard */
 .dash-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:16px}
 @media(max-width:900px){.dash-grid{grid-template-columns:1fr}}
 .dash-card{background:#fff;border:1px solid #E5E7EB;border-radius:10px;padding:18px}
@@ -83,20 +76,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .seg-row:last-child{border-bottom:none}
 .seg-lbl{flex:1;color:#6B7280}
 .seg-val{font-weight:600;color:#1F2D3D}
-/* Stacked bar chart */
-.daily-row{display:flex;align-items:center;gap:12px;margin-bottom:8px;font-size:12px}
-.daily-date{color:#9CA3AF;width:52px;flex-shrink:0;text-align:right}
-.daily-track{flex:1;height:22px;background:#F3F4F6;border-radius:4px;overflow:hidden;display:flex}
-.daily-fill{display:flex;height:100%;transition:width .3s}
-.daily-seg{height:100%;flex-shrink:0}
-.daily-total{font-weight:600;color:#1F2D3D;width:24px;text-align:left;flex-shrink:0}
-.seg-rec{background:#3B82F6}
-.seg-ceo{background:#F97316}
-.seg-vc{background:#10B981}
-.legend{display:flex;gap:16px;margin-top:12px}
+/* Vertical stacked bar chart */
+.chart-wrap{display:flex;align-items:flex-end;gap:20px;height:160px;padding-bottom:28px;position:relative;overflow-x:auto}
+.chart-col{display:flex;flex-direction:column;align-items:center;gap:0;flex-shrink:0}
+.chart-bar{width:40px;display:flex;flex-direction:column-reverse;border-radius:4px 4px 0 0;overflow:hidden}
+.chart-seg{width:100%;flex-shrink:0}
+.chart-label{font-size:10px;color:#9CA3AF;margin-top:6px;white-space:nowrap}
+.chart-count{font-size:11px;font-weight:600;color:#1F2D3D;margin-bottom:3px}
+.chart-y-lines{position:absolute;left:0;right:0;top:0;bottom:28px;pointer-events:none}
+.chart-y-line{position:absolute;left:0;right:0;border-top:1px dashed #F3F4F6}
+.legend{display:flex;gap:16px;margin-top:14px}
 .legend-item{display:flex;align-items:center;gap:5px;font-size:11px;color:#6B7280}
 .legend-dot{width:10px;height:10px;border-radius:2px;flex-shrink:0}
-/* List / Cards */
+/* List */
 .controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
 .search-box{flex:1;min-width:160px;padding:7px 12px;border:1px solid #E5E7EB;border-radius:8px;font-size:13px;outline:none}
 .search-box:focus{border-color:#F97316}
@@ -135,7 +127,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .sec-lbl{font-size:10px;font-weight:700;color:#9CA3AF;text-transform:uppercase;letter-spacing:.06em;margin:12px 0 6px}
 .divider{height:1px;background:#F3F4F6;margin:16px 0}
 .empty{text-align:center;padding:52px 20px;color:#9CA3AF}
-/* Login */
 .login-wrap{display:flex;align-items:center;justify-content:center;min-height:100vh;background:#F5F7FA}
 .login-box{background:#fff;border-radius:14px;padding:40px;max-width:380px;width:100%;border:1px solid #E5E7EB;box-shadow:0 4px 24px rgba(0,0,0,.08)}
 .login-logo{display:flex;align-items:center;gap:9px;margin-bottom:20px}
@@ -223,42 +214,34 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 </div>
 
 <script>
-let TOKEN='', DATA=[], CEOs=[], VCs=[], STATS=null;
-let FILTER='all', TAB='queue';
+let TOKEN='',DATA=[],CEOs=[],VCs=[],STATS=null,FILTER='all',TAB='queue';
 const TODAY=new Date().toISOString().split('T')[0];
-const TITLES={
-  queue:['Morning Queue',"Today's outreach and follow-ups"],
-  dashboard:['Dashboard','Outreach performance and activity'],
-  recruiters:['Recruiters','Executive search firms'],
-  ceos:['Direct CEO / Network','Referral asks and warm network contacts'],
-  vcs:['VC Firms','Portfolio COO and operating partner outreach'],
-};
+const TITLES={queue:['Morning Queue',"Today's outreach and follow-ups"],dashboard:['Dashboard','Outreach performance and activity'],recruiters:['Recruiters','Executive search firms'],ceos:['Direct CEO / Network','Referral asks and warm network contacts'],vcs:['VC Firms','Portfolio COO and operating partner outreach']};
 
 function setStatus(m){const e=document.getElementById('login-status');if(e)e.textContent=m;}
-
 async function init(){
   setStatus('Connecting...');
   try{
     const r=await fetch('/api/auth-required').then(x=>x.json());
     if(!r.required){TOKEN='no-auth';setStatus('Loading...');await loadAll();showApp();}
     else setStatus('Enter password to continue.');
-  }catch(e){setStatus('Could not reach server. Try refreshing.');}
+  }catch(e){setStatus('Could not reach server.');}
 }
 async function doLogin(){
   const pw=document.getElementById('pw-input').value;
   try{
     const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})}).then(x=>x.json());
-    if(r.ok){TOKEN=r.token;setStatus('Loading...');await loadAll();showApp();}
+    if(r.ok){TOKEN=r.token;await loadAll();showApp();}
     else document.getElementById('login-error').style.display='block';
-  }catch(e){setStatus('Login failed. Try refreshing.');}
+  }catch(e){setStatus('Login failed.');}
 }
 async function loadAll(){
   const h={'x-auth-token':TOKEN};
   try{
     [DATA,CEOs,VCs,STATS]=await Promise.all([
       fetch('/api/firms',{headers:h}).then(x=>x.json()),
-      fetch('/api/ceos', {headers:h}).then(x=>x.json()),
-      fetch('/api/vcs',  {headers:h}).then(x=>x.json()),
+      fetch('/api/ceos',{headers:h}).then(x=>x.json()),
+      fetch('/api/vcs',{headers:h}).then(x=>x.json()),
       fetch('/api/stats',{headers:h}).then(x=>x.json()),
     ]);
   }catch(e){DATA=[];CEOs=[];VCs=[];STATS=null;}
@@ -278,14 +261,13 @@ function allItems(){
   return[
     ...DATA.map(x=>({...x,_pillar:'recruiter',_endpoint:'/api/firms',_label:'Recruiter'})),
     ...CEOs.map(x=>({...x,_pillar:'ceo',_endpoint:'/api/ceos',_label:'CEO',name:x.company})),
-    ...VCs.map(x=> ({...x,_pillar:'vc', _endpoint:'/api/vcs', _label:'VC', name:x.firm})),
+    ...VCs.map(x=>({...x,_pillar:'vc',_endpoint:'/api/vcs',_label:'VC',name:x.firm})),
   ];
 }
 function updateBadges(){
   const all=allItems();
-  const drafts=all.filter(x=>x.status==='draft').length;
-  const overdue=all.filter(x=>x.status==='contacted'&&x.followup_date&&x.followup_date<=TODAY).length;
-  document.getElementById('badge-queue').textContent=drafts+overdue;
+  const q=all.filter(x=>x.status==='draft').length+all.filter(x=>x.status==='contacted'&&x.followup_date&&x.followup_date<=TODAY).length;
+  document.getElementById('badge-queue').textContent=q;
   document.getElementById('badge-recruiters').textContent=DATA.filter(x=>['contacted','in conversation','draft'].includes(x.status)).length;
   document.getElementById('badge-ceos').textContent=CEOs.filter(x=>['contacted','in conversation','draft'].includes(x.status)).length;
   document.getElementById('badge-vcs').textContent=VCs.filter(x=>['contacted','in conversation','draft'].includes(x.status)).length;
@@ -298,11 +280,7 @@ function switchTab(t){
   document.getElementById('topbar-sub').textContent=sub;
   renderCurrent();
 }
-function renderCurrent(){
-  if(TAB==='queue')renderQueue();
-  else if(TAB==='dashboard')renderDashboard();
-  else renderList();
-}
+function renderCurrent(){if(TAB==='queue')renderQueue();else if(TAB==='dashboard')renderDashboard();else renderList();}
 
 function renderQueue(){
   const all=allItems();
@@ -313,20 +291,10 @@ function renderQueue(){
   let html=`<div class="queue-date">${dateStr}</div><div class="queue-title">Morning Queue</div><div class="queue-sub">${sendNow.length} to send &nbsp;\u00b7&nbsp; ${followUp.length} follow-ups &nbsp;\u00b7&nbsp; ~${totalMin} min</div>`;
   html+=`<div class="section-header"><div class="section-title">Send Now</div><div class="section-count">${sendNow.length} drafts waiting</div></div>`;
   if(!sendNow.length)html+='<div class="empty" style="padding:20px 0">No drafts queued.</div>';
-  else ['recruiter','ceo','vc'].forEach(p=>{
-    sendNow.filter(x=>x._pillar===p).forEach(item=>{
-      const c=(item.contacts||[]).find(c=>c.status==='draft')||(item.contacts||[])[0]||{};
-      html+=`<div class="queue-card"><span class="pillar-tag pillar-${p}">${item._label}</span><div class="queue-info"><div class="queue-name">${item.name}</div><div class="queue-contact">${c.name||''}</div><div class="queue-email">${c.email||''}</div></div><button class="btn btn-send" onclick="markSent('${item._endpoint}',${item.id},this)">Mark Sent</button></div>`;
-    });
-  });
+  else['recruiter','ceo','vc'].forEach(p=>{sendNow.filter(x=>x._pillar===p).forEach(item=>{const c=(item.contacts||[]).find(c=>c.status==='draft')||(item.contacts||[])[0]||{};html+=`<div class="queue-card"><span class="pillar-tag pillar-${p}">${item._label}</span><div class="queue-info"><div class="queue-name">${item.name}</div><div class="queue-contact">${c.name||''}</div><div class="queue-email">${c.email||''}</div></div><button class="btn btn-send" onclick="markSent('${item._endpoint}',${item.id},this)">Mark Sent</button></div>`;});});
   html+=`<div class="divider"></div><div class="section-header"><div class="section-title">Follow Up Today</div><div class="section-count">${followUp.length} due</div></div>`;
   if(!followUp.length)html+='<div class="empty" style="padding:20px 0">No follow-ups due today.</div>';
-  else followUp.forEach(item=>{
-    const c=(item.contacts||[])[0]||{};
-    const da=item.last_contacted?Math.floor((new Date()-new Date(item.last_contacted))/864e5):null;
-    const ov=item.followup_date<TODAY;
-    html+=`<div class="queue-card ${ov?'followup-overdue':'followup'}"><span class="pillar-tag pillar-${item._pillar}">${item._label}</span><div class="queue-info"><div class="queue-name">${item.name}</div><div class="queue-contact">${c.name||''} &nbsp;\u00b7&nbsp; ${c.email||''}</div><div class="queue-meta">Contacted ${da!=null?da+' days ago':'\u2014'} &nbsp;\u00b7&nbsp; Due ${item.followup_date}</div></div><button class="btn btn-followup" onclick="logFollowup('${item._endpoint}',${item.id})">Log</button></div>`;
-  });
+  else followUp.forEach(item=>{const c=(item.contacts||[])[0]||{};const da=item.last_contacted?Math.floor((new Date()-new Date(item.last_contacted))/864e5):null;const ov=item.followup_date<TODAY;html+=`<div class="queue-card ${ov?'followup-overdue':'followup'}"><span class="pillar-tag pillar-${item._pillar}">${item._label}</span><div class="queue-info"><div class="queue-name">${item.name}</div><div class="queue-contact">${c.name||''} &nbsp;\u00b7&nbsp; ${c.email||''}</div><div class="queue-meta">Contacted ${da!=null?da+' days ago':'\u2014'} &nbsp;\u00b7&nbsp; Due ${item.followup_date}</div></div><button class="btn btn-followup" onclick="logFollowup('${item._endpoint}',${item.id})">Log</button></div>`;});
   document.getElementById('main-content').innerHTML=html;
 }
 async function markSent(endpoint,id,btn){
@@ -348,6 +316,7 @@ function renderDashboard(){
   const {segments,daily,totals}=STATS;
   const overallRate=totals.contacted>0?Math.round((totals.inConversation/totals.contacted)*100):0;
   const maxD=daily.length?Math.max(...daily.map(d=>d.total),1):1;
+  const CHART_H=120; // px for max bar height
 
   let html=`<div class="stats">
     <div class="stat"><div class="stat-label">Total Outreach</div><div class="stat-val">${totals.contacted}</div><div class="stat-sub">sent & delivered</div></div>
@@ -357,42 +326,33 @@ function renderDashboard(){
     <div class="stat"><div class="stat-label">Bounced</div><div class="stat-val">${totals.bounced}</div><div class="stat-sub">need alt contact</div></div>
   </div>`;
 
-  html+=`<div class="dash-grid">`;
   const bc=['#3B82F6','#F97316','#10B981'];
-  segments.forEach((s,i)=>{
-    const pct=s.contacted>0?Math.round((s.conv/s.contacted)*100):0;
-    html+=`<div class="dash-card"><div class="dash-card-title">${s.label}</div><div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:14px"><div><div class="big-num">${s.contacted}</div><div class="big-sub">contacted</div></div><div class="rate-circle" style="border-color:${bc[i]}"><div class="rate-pct">${pct}%</div><div class="rate-lbl">replies</div></div></div><div class="seg-row"><span class="seg-lbl">In conversation</span><span class="seg-val">${s.conv}</span></div><div class="seg-row"><span class="seg-lbl">Drafts pending</span><span class="seg-val" style="color:#8B5CF6">${s.drafts}</span></div><div class="seg-row"><span class="seg-lbl">Bounced</span><span class="seg-val" style="color:#F59E0B">${s.bounced}</span></div></div>`;
-  });
+  html+=`<div class="dash-grid">`;
+  segments.forEach((s,i)=>{const pct=s.contacted>0?Math.round((s.conv/s.contacted)*100):0;html+=`<div class="dash-card"><div class="dash-card-title">${s.label}</div><div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:14px"><div><div class="big-num">${s.contacted}</div><div class="big-sub">contacted</div></div><div class="rate-circle" style="border-color:${bc[i]}"><div class="rate-pct">${pct}%</div><div class="rate-lbl">replies</div></div></div><div class="seg-row"><span class="seg-lbl">In conversation</span><span class="seg-val">${s.conv}</span></div><div class="seg-row"><span class="seg-lbl">Drafts pending</span><span class="seg-val" style="color:#8B5CF6">${s.drafts}</span></div><div class="seg-row"><span class="seg-lbl">Bounced</span><span class="seg-val" style="color:#F59E0B">${s.bounced}</span></div></div>`;});
   html+=`</div>`;
 
-  // Stacked horizontal bar chart
+  // Vertical stacked bar chart: X=date columns, Y=count, segments stacked bottom-to-top
   html+=`<div class="dash-card"><div class="dash-card-title">Daily Outreach Activity</div>`;
   if(!daily.length){html+='<div style="color:#9CA3AF;font-size:13px">No activity yet.</div>';}
   else{
+    html+=`<div class="chart-wrap">`;
     daily.forEach(d=>{
-      const fillPct=(d.total/maxD)*100;
-      // Within the fill, each segment is proportional to its count out of the day total
-      const rPct=d.total>0?(d.recruiters/d.total)*100:0;
-      const cPct=d.total>0?(d.ceos/d.total)*100:0;
-      const vPct=d.total>0?(d.vcs/d.total)*100:0;
+      const totalH=Math.round((d.total/maxD)*CHART_H);
+      const rH=d.total>0?Math.round((d.recruiters/d.total)*totalH):0;
+      const cH=d.total>0?Math.round((d.ceos/d.total)*totalH):0;
+      const vH=totalH-rH-cH; // vcs get remainder to avoid rounding gaps
       const label=new Date(d.date+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});
-      html+=`<div class="daily-row">
-        <div class="daily-date">${label}</div>
-        <div class="daily-track">
-          <div class="daily-fill" style="width:${fillPct.toFixed(1)}%">
-            ${d.recruiters?`<div class="daily-seg seg-rec" style="width:${rPct.toFixed(1)}%" title="Recruiters: ${d.recruiters}"></div>`:''}
-            ${d.ceos?`<div class="daily-seg seg-ceo" style="width:${cPct.toFixed(1)}%" title="CEOs: ${d.ceos}"></div>`:''}
-            ${d.vcs?`<div class="daily-seg seg-vc" style="width:${vPct.toFixed(1)}%" title="VCs: ${d.vcs}"></div>`:''}
-          </div>
+      html+=`<div class="chart-col">
+        <div class="chart-count">${d.total}</div>
+        <div class="chart-bar" style="height:${totalH}px">
+          ${d.vcs?`<div class="chart-seg" style="height:${vH}px;background:#10B981" title="VCs: ${d.vcs}"></div>`:''}
+          ${d.ceos?`<div class="chart-seg" style="height:${cH}px;background:#F97316" title="CEOs: ${d.ceos}"></div>`:''}
+          ${d.recruiters?`<div class="chart-seg" style="height:${rH}px;background:#3B82F6" title="Recruiters: ${d.recruiters}"></div>`:''}
         </div>
-        <div class="daily-total">${d.total}</div>
+        <div class="chart-label">${label}</div>
       </div>`;
     });
-    html+=`<div class="legend">
-      <div class="legend-item"><div class="legend-dot" style="background:#3B82F6"></div>Recruiters</div>
-      <div class="legend-item"><div class="legend-dot" style="background:#F97316"></div>CEOs</div>
-      <div class="legend-item"><div class="legend-dot" style="background:#10B981"></div>VCs</div>
-    </div>`;
+    html+=`</div><div class="legend"><div class="legend-item"><div class="legend-dot" style="background:#3B82F6"></div>Recruiters</div><div class="legend-item"><div class="legend-dot" style="background:#F97316"></div>CEOs</div><div class="legend-item"><div class="legend-dot" style="background:#10B981"></div>VCs</div></div>`;
   }
   html+=`</div>`;
   document.getElementById('main-content').innerHTML=html;
@@ -400,11 +360,7 @@ function renderDashboard(){
 
 function currentData(){return TAB==='ceos'?CEOs:TAB==='vcs'?VCs:DATA;}
 function nameField(item){return TAB==='ceos'?item.company:TAB==='vcs'?item.firm:item.name;}
-function setFilter(f,btn){
-  FILTER=f;
-  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
-  btn.classList.add('active');renderList();
-}
+function setFilter(f,btn){FILTER=f;document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderList();}
 function renderList(){
   const q=(document.getElementById('search-input')||{}).value?.toLowerCase()||'';
   let items=currentData();
@@ -414,13 +370,7 @@ function renderList(){
   const all=currentData();
   const sMap=s=>all.filter(x=>x.status===s).length;
   const statHtml=[['Total',all.length],['Draft',sMap('draft')],['Contacted',sMap('contacted')],['In Convo',sMap('in conversation')],['Not Started',sMap('not contacted')],['Bounced',all.filter(x=>x.status==='bounced'||(x.contacts||[]).some(c=>c.status==='bounced')).length]].map(([l,v])=>`<div class="stat"><div class="stat-label">${l}</div><div class="stat-val">${v}</div></div>`).join('');
-  const cardsHtml=items.length?items.map(item=>{
-    const id=item.id,name=nameField(item);
-    const dotCls='sdot-'+(item.status||'not-contacted').replace(/ /g,'-');
-    const tier=item.tier?`<span class="tier-badge">T${item.tier}</span>`:TAB==='ceos'?'<span class="tier-badge">CEO</span>':'<span class="tier-badge">VC</span>';
-    const contacts=(item.contacts||[]).map(c=>{const cs='cs-'+(c.status||'not-contacted').replace(/ /g,'-');return`<div class="contact-row"><div class="contact-info"><div class="contact-name">${c.name}</div>${c.title?`<div class="contact-title">${c.title}</div>`:''} ${c.email?`<div class="contact-email">${c.email}</div>`:''} ${c.notes?`<div class="contact-notes">${c.notes}</div>`:''}</div><span class="cs-tag ${cs}">${c.status||'not contacted'}</span></div>`;}).join('');
-    return`<div class="card"><div class="card-header" onclick="toggle('${TAB}',${id})">${tier}<div class="card-name">${name}</div><span class="status-lbl">${item.status||'not contacted'}</span><span class="sdot ${dotCls}"></span></div><div class="card-body" id="body-${TAB}-${id}"><div class="why">${item.why||''}</div>${contacts?`<div class="sec-lbl">Contacts</div>${contacts}`:''}<div class="sec-lbl" style="margin-top:12px">Notes & Status</div><div class="field-row"><textarea class="notes-input" id="notes-${TAB}-${id}">${item.notes||''}</textarea><div style="display:flex;flex-direction:column;gap:6px"><select class="status-select" id="status-${TAB}-${id}">${['not contacted','draft','linkedin','contacted','in conversation','bounced','passed'].map(s=>`<option value="${s}"${item.status===s?' selected':''}>${s}</option>`).join('')}</select><input class="date-input" type="date" id="followup-${TAB}-${id}" value="${item.followup_date||''}"><button class="save-btn" onclick="save('${TAB}',${id})">Save</button></div></div></div></div>`;
-  }).join(''):'<div class="empty">No results.</div>';
+  const cardsHtml=items.length?items.map(item=>{const id=item.id,name=nameField(item);const dotCls='sdot-'+(item.status||'not-contacted').replace(/ /g,'-');const tier=item.tier?`<span class="tier-badge">T${item.tier}</span>`:TAB==='ceos'?'<span class="tier-badge">CEO</span>':'<span class="tier-badge">VC</span>';const contacts=(item.contacts||[]).map(c=>{const cs='cs-'+(c.status||'not-contacted').replace(/ /g,'-');return`<div class="contact-row"><div class="contact-info"><div class="contact-name">${c.name}</div>${c.title?`<div class="contact-title">${c.title}</div>`:''} ${c.email?`<div class="contact-email">${c.email}</div>`:''} ${c.notes?`<div class="contact-notes">${c.notes}</div>`:''}</div><span class="cs-tag ${cs}">${c.status||'not contacted'}</span></div>`;}).join('');return`<div class="card"><div class="card-header" onclick="toggle('${TAB}',${id})">${tier}<div class="card-name">${name}</div><span class="status-lbl">${item.status||'not contacted'}</span><span class="sdot ${dotCls}"></span></div><div class="card-body" id="body-${TAB}-${id}"><div class="why">${item.why||''}</div>${contacts?`<div class="sec-lbl">Contacts</div>${contacts}`:''}<div class="sec-lbl" style="margin-top:12px">Notes & Status</div><div class="field-row"><textarea class="notes-input" id="notes-${TAB}-${id}">${item.notes||''}</textarea><div style="display:flex;flex-direction:column;gap:6px"><select class="status-select" id="status-${TAB}-${id}">${['not contacted','draft','linkedin','contacted','in conversation','bounced','passed'].map(s=>`<option value="${s}"${item.status===s?' selected':''}>${s}</option>`).join('')}</select><input class="date-input" type="date" id="followup-${TAB}-${id}" value="${item.followup_date||''}"><button class="save-btn" onclick="save('${TAB}',${id})">Save</button></div></div></div></div>`;}).join(''):'<div class="empty">No results.</div>';
   document.getElementById('main-content').innerHTML=`<div class="controls"><input class="search-box" type="text" id="search-input" placeholder="Search..." oninput="renderList()" value="${q}"><button class="filter-btn active" onclick="setFilter('all',this)">All</button><button class="filter-btn" onclick="setFilter('draft',this)">Draft</button><button class="filter-btn" onclick="setFilter('active',this)">Active</button><button class="filter-btn" onclick="setFilter('contacted',this)">Contacted</button><button class="filter-btn" onclick="setFilter('in conversation',this)">In Convo</button><button class="filter-btn" onclick="setFilter('not contacted',this)">Not Started</button><button class="filter-btn" onclick="setFilter('bounced',this)">Bounced</button><button class="filter-btn" onclick="setFilter('passed',this)">Passed</button></div><div class="stats">${statHtml}</div><div class="cards">${cardsHtml}</div>`;
 }
 function toggle(tab,id){document.getElementById(`body-${tab}-${id}`)?.classList.toggle('open');}

@@ -4,24 +4,28 @@ const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const DATA_DIR = path.join(__dirname, 'data');
 const PASSWORD = process.env.AUTH_PASSWORD || '';
 
-const SEEDS = {
-  firms: path.join(DATA_DIR, 'seed_firms.json'),
-  ceos:  path.join(DATA_DIR, 'seed_ceos.json'),
-  vcs:   path.join(DATA_DIR, 'seed_vcs.json'),
-};
+// Seeds live in /seeds/ — never under the Railway volume mount.
+// Railway volume mounts at /app/data. Seeds at /app/seeds are untouched by the volume.
+// Overrides (runtime status changes) live in /app/data/overrides.json on the volume.
+const SEEDS_DIR = path.join(__dirname, 'seeds');
+const DATA_DIR  = path.join(__dirname, 'data');
 const OVERRIDES_PATH = path.join(DATA_DIR, 'overrides.json');
+
+const SEED_PATHS = {
+  firms: path.join(SEEDS_DIR, 'seed_firms.json'),
+  ceos:  path.join(SEEDS_DIR, 'seed_ceos.json'),
+  vcs:   path.join(SEEDS_DIR, 'seed_vcs.json'),
+};
 
 try { if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true }); } catch(e){}
 
-// Seeds are always the canonical contact list.
-// Overrides store runtime state (status, notes, followup_date, last_contacted).
-// Overrides survive deploys via Railway volume. Seeds update on every deploy.
-
 function readSeed(key) {
-  try { return JSON.parse(fs.readFileSync(SEEDS[key], 'utf8')); } catch(e) { return []; }
+  try { return JSON.parse(fs.readFileSync(SEED_PATHS[key], 'utf8')); } catch(e) {
+    console.error('Failed to read seed:', key, e.message);
+    return [];
+  }
 }
 
 function loadOverrides() {
@@ -31,21 +35,21 @@ function loadOverrides() {
   return { firms: {}, ceos: {}, vcs: {} };
 }
 
-function saveOverrides(overrides) {
-  try { fs.writeFileSync(OVERRIDES_PATH, JSON.stringify(overrides, null, 2)); } catch(e) {}
+function saveOverrides(o) {
+  try { fs.writeFileSync(OVERRIDES_PATH, JSON.stringify(o, null, 2)); } catch(e) {}
 }
 
 function getDB(key) {
   const seed = readSeed(key);
-  const overrides = loadOverrides();
-  const ko = overrides[key] || {};
+  const ov = (loadOverrides()[key]) || {};
   return seed.map(item => {
-    const o = ko[String(item.id)];
+    const o = ov[String(item.id)];
     return o ? { ...item, ...o } : item;
   });
 }
 
-console.log('HopeSpot ready — seeds always current, overrides persist on volume');
+const counts = { firms: readSeed('firms').length, ceos: readSeed('ceos').length, vcs: readSeed('vcs').length };
+console.log(`HopeSpot ready — firms:${counts.firms} ceos:${counts.ceos} vcs:${counts.vcs} — seeds from /seeds/, overrides on volume`);
 
 const sessions = new Set();
 function requireAuth(req, res, next) {
@@ -69,6 +73,19 @@ app.get('/api/auth-required', (req, res) => res.json({ required: !!PASSWORD }));
 app.get('/api/firms', requireAuth, (req, res) => res.json(getDB('firms')));
 app.get('/api/ceos',  requireAuth, (req, res) => res.json(getDB('ceos')));
 app.get('/api/vcs',   requireAuth, (req, res) => res.json(getDB('vcs')));
+
+// Debug endpoint — shows seed counts and overrides count so we can verify the right files are loading
+app.get('/api/debug', requireAuth, (req, res) => {
+  const ov = loadOverrides();
+  res.json({
+    seedsDir: SEEDS_DIR,
+    dataDir: DATA_DIR,
+    seedCounts: { firms: readSeed('firms').length, ceos: readSeed('ceos').length, vcs: readSeed('vcs').length },
+    overrideCounts: { firms: Object.keys(ov.firms||{}).length, ceos: Object.keys(ov.ceos||{}).length, vcs: Object.keys(ov.vcs||{}).length },
+    overridesPath: OVERRIDES_PATH,
+    overridesExists: fs.existsSync(OVERRIDES_PATH),
+  });
+});
 
 app.get('/api/stats', requireAuth, (req, res) => {
   const firms = getDB('firms');
@@ -126,19 +143,16 @@ function makePatch(key) {
       const seed = readSeed(key);
       const item = seed.find(x => x.id === id);
       if (!item) return res.status(404).json({ error: 'Not found' });
-
-      const overrides = loadOverrides();
-      if (!overrides[key]) overrides[key] = {};
-      const existing = overrides[key][String(id)] || {};
-      const updated = { ...existing };
-
-      ['status','notes','followup_date'].forEach(k => { if (req.body[k] !== undefined) updated[k] = req.body[k]; });
+      const ov = loadOverrides();
+      if (!ov[key]) ov[key] = {};
+      const cur = ov[key][String(id)] || {};
+      const upd = { ...cur };
+      ['status','notes','followup_date'].forEach(k => { if (req.body[k] !== undefined) upd[k] = req.body[k]; });
       if (req.body.status && !['not contacted','draft'].includes(req.body.status))
-        updated.last_contacted = new Date().toISOString().split('T')[0];
-
-      overrides[key][String(id)] = updated;
-      saveOverrides(overrides);
-      res.json({ ...item, ...updated });
+        upd.last_contacted = new Date().toISOString().split('T')[0];
+      ov[key][String(id)] = upd;
+      saveOverrides(ov);
+      res.json({ ...item, ...upd });
     } catch(e) { res.status(500).json({ error: e.message }); }
   };
 }
@@ -147,7 +161,6 @@ app.patch('/api/firms/:id', requireAuth, makePatch('firms'));
 app.patch('/api/ceos/:id',  requireAuth, makePatch('ceos'));
 app.patch('/api/vcs/:id',   requireAuth, makePatch('vcs'));
 
-// Clear all overrides — resets status back to seed defaults
 app.post('/api/reseed', requireAuth, (req, res) => {
   saveOverrides({ firms: {}, ceos: {}, vcs: {} });
   res.json({ ok: true, message: 'Overrides cleared. All statuses reset to seed defaults.' });
@@ -157,31 +170,31 @@ app.post('/api/sync', requireAuth, (req, res) => {
   const updates = req.body.updates || [];
   if (!updates.length) return res.json({ ok: true, changed: 0 });
   let changed = 0;
-  const overrides = loadOverrides();
+  const ov = loadOverrides();
   ['firms','ceos','vcs'].forEach(key => {
     const seed = readSeed(key);
     seed.forEach(item => {
       (item.contacts||[]).forEach(c => {
         const match = updates.find(u => u.email && c.email && u.email.toLowerCase() === c.email.toLowerCase());
         if (!match) return;
-        if (!overrides[key]) overrides[key] = {};
-        const existing = overrides[key][String(item.id)] || {};
-        const updated = { ...existing };
-        if (match.status) updated.status = match.status;
+        if (!ov[key]) ov[key] = {};
+        const cur = ov[key][String(item.id)] || {};
+        const upd = { ...cur };
+        if (match.status) upd.status = match.status;
         if (match.note) {
           const ts = new Date().toLocaleDateString('en-US',{month:'short',day:'numeric'});
-          updated.notes = updated.notes ? updated.notes+'\n['+ts+'] '+match.note : '['+ts+'] '+match.note;
+          upd.notes = upd.notes ? upd.notes+'\n['+ts+'] '+match.note : '['+ts+'] '+match.note;
         }
-        updated.last_contacted = new Date().toISOString().split('T')[0];
-        overrides[key][String(item.id)] = updated;
+        upd.last_contacted = new Date().toISOString().split('T')[0];
+        ov[key][String(item.id)] = upd;
         changed++;
       });
     });
   });
-  saveOverrides(overrides);
+  saveOverrides(ov);
   res.json({ ok: true, changed });
 });
 
-app.get('/health', (req, res) => res.json({ ok: true, port: PORT }));
+app.get('/health', (req, res) => res.json({ ok: true, port: PORT, seedCounts: { firms: readSeed('firms').length, ceos: readSeed('ceos').length, vcs: readSeed('vcs').length } }));
 app.use(express.static(path.join(__dirname, 'public')));
-app.listen(PORT, '0.0.0.0', () => console.log('HopeSpot on port '+PORT));
+app.listen(PORT, '0.0.0.0', () => console.log('Listening on port '+PORT));
