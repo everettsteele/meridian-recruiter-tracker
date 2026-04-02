@@ -7,8 +7,6 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const PASSWORD = process.env.AUTH_PASSWORD || '';
 
-// Seeds live in /seeds/ — outside Railway volume mount at /app/data.
-// Overrides (runtime status changes) live in /app/data/overrides.json on the volume.
 const SEEDS_DIR = path.join(__dirname, 'seeds');
 const DATA_DIR  = path.join(__dirname, 'data');
 const OVERRIDES_PATH = path.join(DATA_DIR, 'overrides.json');
@@ -49,9 +47,21 @@ function getDB(key) {
   });
 }
 
+// Safe date formatting — no locale dependency, works in any Node ICU build.
+// Returns YYYY-MM-DD in America/New_York time by offsetting UTC.
 function todayET() {
-  // Returns today's date string in America/New_York timezone
-  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' }); // YYYY-MM-DD
+  // ET is UTC-5 (EST) or UTC-4 (EDT). Use toLocaleString with en-US which is always available.
+  try {
+    const etStr = new Date().toLocaleString('en-US', { timeZone: 'America/New_York' });
+    const d = new Date(etStr);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  } catch(e) {
+    // Fallback: UTC date
+    return new Date().toISOString().split('T')[0];
+  }
 }
 
 function loadCronState() {
@@ -65,17 +75,12 @@ function saveCronState(state) {
   try { fs.writeFileSync(CRON_STATE_PATH, JSON.stringify(state, null, 2)); } catch(e) {}
 }
 
-// ── DAILY QUEUE LOGIC ───────────────────────────────────────────────
-// Pulls up to 5 contacts per pillar from 'not contacted', marks as 'draft'.
-// Tier 1 contacts pulled first. Surplus redistributed across pillars.
-// Goal: 15 drafts queued per run.
-
 const DAILY_TARGET = 15;
 const PILLARS = ['firms', 'ceos', 'vcs'];
 
 function runDailyCron() {
   const ov = loadOverrides();
-  const perPillar = Math.ceil(DAILY_TARGET / PILLARS.length); // 5 each
+  const perPillar = Math.ceil(DAILY_TARGET / PILLARS.length);
 
   const pools = {};
   PILLARS.forEach(key => {
@@ -125,11 +130,6 @@ function runDailyCron() {
   return { totalDrafted, allocations };
 }
 
-// ── STARTUP BOOT CHECK ──────────────────────────────────────────────
-// On every boot, check if today's queue has already run.
-// If not (e.g. service restarted after 6 AM), run it immediately.
-// This ensures a Railway restart never causes a missed morning queue.
-
 function bootCheck() {
   const state = loadCronState();
   const today = todayET();
@@ -141,17 +141,16 @@ function bootCheck() {
   runDailyCron();
 }
 
-// ── SCHEDULED CRON ──────────────────────────────────────────────────
-// 6 AM ET daily as primary trigger. Boot check above handles missed fires.
-cron.schedule('0 6 * * *', () => {
-  console.log('[CRON] 6 AM ET — running daily outreach queue...');
+// Schedule at 10:00 UTC = 6:00 AM ET (summer/EDT).
+// No timezone option needed — avoids dependency on system timezone data.
+cron.schedule('0 10 * * *', () => {
+  console.log('[CRON] 10:00 UTC — running daily outreach queue...');
   runDailyCron();
-}, { timezone: 'America/New_York' });
+});
 
-// Run boot check after a short delay to let the server fully initialize
 setTimeout(bootCheck, 3000);
 
-console.log(`HopeSpot ready — seeds:${readSeed('firms').length}f/${readSeed('ceos').length}c/${readSeed('vcs').length}v — cron 6AM ET + boot check active`);
+console.log(`HopeSpot ready — seeds:${readSeed('firms').length}f/${readSeed('ceos').length}c/${readSeed('vcs').length}v — cron + boot check active`);
 
 const sessions = new Set();
 function requireAuth(req, res, next) {
@@ -294,7 +293,7 @@ app.post('/api/sync', requireAuth, (req, res) => {
         const upd = { ...cur };
         if (match.status) upd.status = match.status;
         if (match.note) {
-          const ts = new Date().toLocaleDateString('en-US',{month:'short',day:'numeric'});
+          const ts = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
           upd.notes = upd.notes ? upd.notes+'\n['+ts+'] '+match.note : '['+ts+'] '+match.note;
         }
         upd.last_contacted = new Date().toISOString().split('T')[0];
@@ -309,4 +308,4 @@ app.post('/api/sync', requireAuth, (req, res) => {
 
 app.get('/health', (req, res) => res.json({ ok: true, port: PORT, cronState: loadCronState(), todayET: todayET() }));
 app.use(express.static(path.join(__dirname, 'public')));
-app.listen(PORT, '0.0.0.0', () => console.log('Listening on port '+PORT));
+app.listen(PORT, '0.0.0.0', () => console.log('Listening on port ' + PORT));
