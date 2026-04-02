@@ -1,7 +1,6 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
-const cron = require('node-cron');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -39,7 +38,7 @@ function saveOverrides(o) {
 }
 
 // Statuses that are more authoritative than 'draft'.
-// A 'draft' override is a transient queuing state — it should never mask
+// A 'draft' override is a transient queuing state and should never mask
 // a seed entry that has already been sent/contacted/bounced/passed.
 const SENT_STATUSES = new Set(['contacted', 'in conversation', 'bounced', 'passed', 'linkedin']);
 
@@ -49,7 +48,7 @@ function getDB(key) {
   return seed.map(item => {
     const o = ov[String(item.id)];
     if (!o) return item;
-    // Don't let a stale 'draft' override mask a seed that is already sent/contacted.
+    // Don't let a stale 'draft' override mask a seed already marked sent/contacted.
     if (o.status === 'draft' && SENT_STATUSES.has(item.status)) {
       return { ...item, ...o, status: item.status };
     }
@@ -61,12 +60,9 @@ function todayET() {
   try {
     const etStr = new Date().toLocaleString('en-US', { timeZone: 'America/New_York' });
     const d = new Date(etStr);
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   } catch(e) {
-    console.warn('[WARN] todayET() fell back to UTC — timezone support may be unavailable on this system');
+    console.warn('[WARN] todayET() fell back to UTC');
     return new Date().toISOString().split('T')[0];
   }
 }
@@ -86,11 +82,11 @@ const DAILY_TARGET = 15;
 const PILLARS = ['firms', 'ceos', 'vcs'];
 
 function runDailyCron() {
-  const currentDraftCount = PILLARS.reduce((sum, key) => {
-    return sum + getDB(key).filter(x => x.status === 'draft').length;
-  }, 0);
-  if (currentDraftCount >= DAILY_TARGET) {
-    console.log(`[CRON] Sufficient drafts already queued (${currentDraftCount}). Skipping run.`);
+  // Idempotency: skip if sufficient drafts already queued
+  const currentDrafts = PILLARS.reduce((sum, key) =>
+    sum + getDB(key).filter(x => x.status === 'draft').length, 0);
+  if (currentDrafts >= DAILY_TARGET) {
+    console.log(`[CRON] ${currentDrafts} drafts already queued. Skipping.`);
     return { totalDrafted: 0, allocations: {}, skipped: true };
   }
 
@@ -115,16 +111,11 @@ function runDailyCron() {
     allocations[key] = take;
     surplus += (perPillar - take);
   });
-
   if (surplus > 0) {
     PILLARS.forEach(key => {
       if (surplus <= 0) return;
-      const canTakeMore = pools[key].length - allocations[key];
-      if (canTakeMore > 0) {
-        const extra = Math.min(surplus, canTakeMore);
-        allocations[key] += extra;
-        surplus -= extra;
-      }
+      const extra = Math.min(surplus, pools[key].length - allocations[key]);
+      if (extra > 0) { allocations[key] += extra; surplus -= extra; }
     });
   }
 
@@ -139,31 +130,42 @@ function runDailyCron() {
 
   saveOverrides(ov);
   saveCronState({ lastRunDate: todayET(), totalDrafted, allocations });
-
-  const summary = PILLARS.map(k => `${k}:${allocations[k]}`).join(', ');
-  console.log(`[CRON] Daily queue run — ${totalDrafted} contacts drafted (${summary})`);
+  console.log(`[CRON] Drafted ${totalDrafted} contacts (${PILLARS.map(k=>`${k}:${allocations[k]}`).join(', ')})`);
   return { totalDrafted, allocations };
 }
 
+// Boot check: run queue immediately if it hasn't run today
 function bootCheck() {
   const state = loadCronState();
   const today = todayET();
   if (state.lastRunDate === today) {
-    console.log(`[BOOT] Queue already ran today (${today}), ${state.totalDrafted} drafted. Skipping.`);
+    console.log(`[BOOT] Queue already ran today (${today}). Skipping.`);
     return;
   }
-  console.log(`[BOOT] No queue run found for ${today} — running now.`);
+  console.log(`[BOOT] Running queue for ${today}...`);
   runDailyCron();
 }
 
-cron.schedule('0 10 * * *', () => {
-  console.log('[CRON] 10:00 UTC — running daily outreach queue...');
-  runDailyCron();
-});
+// Daily queue: check every 5 minutes whether it's 6 AM ET and queue hasn't run yet.
+// No external cron library needed.
+setInterval(() => {
+  try {
+    const etStr = new Date().toLocaleString('en-US', { timeZone: 'America/New_York' });
+    const et = new Date(etStr);
+    const h = et.getHours(), m = et.getMinutes();
+    if (h === 6 && m < 5) {
+      const state = loadCronState();
+      if (state.lastRunDate !== todayET()) {
+        console.log('[CRON] 6 AM ET window hit — running daily queue...');
+        runDailyCron();
+      }
+    }
+  } catch(e) { console.error('[CRON interval error]', e.message); }
+}, 5 * 60 * 1000);
 
 setTimeout(bootCheck, 3000);
 
-console.log(`HopeSpot ready — seeds:${readSeed('firms').length}f/${readSeed('ceos').length}c/${readSeed('vcs').length}v — cron + boot check active`);
+console.log(`HopeSpot ready — seeds:${readSeed('firms').length}f/${readSeed('ceos').length}c/${readSeed('vcs').length}v`);
 
 const sessions = new Set();
 function requireAuth(req, res, next) {
@@ -179,7 +181,8 @@ app.post('/api/login', (req, res) => {
   if (!PASSWORD) return res.json({ ok: true, token: 'no-auth' });
   if (req.body.password === PASSWORD) {
     const token = Math.random().toString(36).slice(2) + Date.now().toString(36);
-    sessions.add(token); res.json({ ok: true, token });
+    sessions.add(token);
+    res.json({ ok: true, token });
   } else res.status(401).json({ error: 'Wrong password' });
 });
 
@@ -190,39 +193,35 @@ app.get('/api/vcs',   requireAuth, (req, res) => res.json(getDB('vcs')));
 
 let lastCronRunCall = 0;
 app.post('/api/cron/run', requireAuth, (req, res) => {
-  if (Date.now() - lastCronRunCall < 60000) {
-    return res.status(429).json({ error: 'Rate limited. Wait 60 seconds before running again.' });
-  }
+  if (Date.now() - lastCronRunCall < 60000)
+    return res.status(429).json({ error: 'Rate limited. Wait 60 seconds.' });
   lastCronRunCall = Date.now();
-  const result = runDailyCron();
-  res.json({ ok: true, ...result });
+  res.json({ ok: true, ...runDailyCron() });
 });
 
-// Public — no sensitive data, useful for diagnostics without login
+// Public endpoint — no sensitive data, useful for diagnostics without login
 app.get('/api/debug', (req, res) => {
   const ov = loadOverrides();
-  const state = loadCronState();
   res.json({
-    seedsDir: SEEDS_DIR,
-    dataDir: DATA_DIR,
+    version: '2.0',
     seedCounts: { firms: readSeed('firms').length, ceos: readSeed('ceos').length, vcs: readSeed('vcs').length },
     overrideCounts: { firms: Object.keys(ov.firms||{}).length, ceos: Object.keys(ov.ceos||{}).length, vcs: Object.keys(ov.vcs||{}).length },
-    notContactedCounts: {
-      firms: getDB('firms').filter(x=>x.status==='not contacted').length,
-      ceos:  getDB('ceos').filter(x=>x.status==='not contacted').length,
-      vcs:   getDB('vcs').filter(x=>x.status==='not contacted').length,
-    },
     contactedCounts: {
-      firms: getDB('firms').filter(x=>SENT_STATUSES.has(x.status)).length,
-      ceos:  getDB('ceos').filter(x=>SENT_STATUSES.has(x.status)).length,
-      vcs:   getDB('vcs').filter(x=>SENT_STATUSES.has(x.status)).length,
+      firms: getDB('firms').filter(x => SENT_STATUSES.has(x.status)).length,
+      ceos:  getDB('ceos').filter(x => SENT_STATUSES.has(x.status)).length,
+      vcs:   getDB('vcs').filter(x => SENT_STATUSES.has(x.status)).length,
     },
     draftCounts: {
-      firms: getDB('firms').filter(x=>x.status==='draft').length,
-      ceos:  getDB('ceos').filter(x=>x.status==='draft').length,
-      vcs:   getDB('vcs').filter(x=>x.status==='draft').length,
+      firms: getDB('firms').filter(x => x.status === 'draft').length,
+      ceos:  getDB('ceos').filter(x => x.status === 'draft').length,
+      vcs:   getDB('vcs').filter(x => x.status === 'draft').length,
     },
-    cronState: state,
+    notContactedCounts: {
+      firms: getDB('firms').filter(x => x.status === 'not contacted').length,
+      ceos:  getDB('ceos').filter(x => x.status === 'not contacted').length,
+      vcs:   getDB('vcs').filter(x => x.status === 'not contacted').length,
+    },
+    cronState: loadCronState(),
     todayET: todayET(),
   });
 });
@@ -234,23 +233,24 @@ app.get('/api/stats', requireAuth, (req, res) => {
 
   function seg(arr, label) {
     const contacted = arr.filter(x => ['contacted','in conversation'].includes(x.status)).length;
-    const drafts    = arr.filter(x => x.status === 'draft').length;
     const conv      = arr.filter(x => x.status === 'in conversation').length;
+    const drafts    = arr.filter(x => x.status === 'draft').length;
     const bounced   = arr.filter(x => x.status === 'bounced' || (x.contacts||[]).some(c => c.status === 'bounced')).length;
-    return { label, total: arr.length, contacted, drafts, conv, bounced, responseRate: contacted > 0 ? Math.round((conv/contacted)*100) : 0 };
+    return { label, total: arr.length, contacted, drafts, conv, bounced,
+      responseRate: contacted > 0 ? Math.round((conv/contacted)*100) : 0 };
   }
 
   const allItems = [
-    ...firms.map(x => ({ ...x, _key: 'firms' })),
-    ...ceos.map(x  => ({ ...x, _key: 'ceos' })),
-    ...vcs.map(x   => ({ ...x, _key: 'vcs' })),
+    ...firms.map(x => ({...x, _key:'firms'})),
+    ...ceos.map(x  => ({...x, _key:'ceos'})),
+    ...vcs.map(x   => ({...x, _key:'vcs'})),
   ];
 
   const byDate = {};
   allItems.forEach(item => {
     if (!item.last_contacted) return;
     const d = item.last_contacted;
-    if (!byDate[d]) byDate[d] = { recruiters: 0, ceos: 0, vcs: 0, total: 0 };
+    if (!byDate[d]) byDate[d] = { recruiters:0, ceos:0, vcs:0, total:0 };
     if (['contacted','in conversation'].includes(item.status)) {
       if (item._key === 'firms') byDate[d].recruiters++;
       if (item._key === 'ceos')  byDate[d].ceos++;
@@ -259,13 +259,9 @@ app.get('/api/stats', requireAuth, (req, res) => {
     }
   });
 
-  const daily = Object.entries(byDate)
-    .sort(([a],[b]) => a > b ? 1 : -1)
-    .map(([date, counts]) => ({ date, ...counts }));
-
   res.json({
     segments: [seg(firms,'Recruiters'), seg(ceos,'Direct CEO'), seg(vcs,'VC Firms')],
-    daily,
+    daily: Object.entries(byDate).sort(([a],[b])=>a>b?1:-1).map(([date,counts])=>({date,...counts})),
     totals: {
       contacted: allItems.filter(x => ['contacted','in conversation'].includes(x.status)).length,
       inConversation: allItems.filter(x => x.status === 'in conversation').length,
@@ -276,25 +272,21 @@ app.get('/api/stats', requireAuth, (req, res) => {
   });
 });
 
-const VALID_STATUSES = ['not contacted', 'draft', 'linkedin', 'contacted', 'in conversation', 'bounced', 'passed'];
+const VALID_STATUSES = ['not contacted','draft','linkedin','contacted','in conversation','bounced','passed'];
 
 function makePatch(key) {
   return (req, res) => {
     try {
-      if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
+      if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body))
         return res.status(400).json({ error: 'Invalid request body' });
-      }
-      if (req.body.status !== undefined && !VALID_STATUSES.includes(req.body.status)) {
+      if (req.body.status !== undefined && !VALID_STATUSES.includes(req.body.status))
         return res.status(400).json({ error: 'Invalid status value' });
-      }
       const id = parseInt(req.params.id);
-      const seed = readSeed(key);
-      const item = seed.find(x => x.id === id);
+      const item = readSeed(key).find(x => x.id === id);
       if (!item) return res.status(404).json({ error: 'Not found' });
       const ov = loadOverrides();
       if (!ov[key]) ov[key] = {};
-      const cur = ov[key][String(id)] || {};
-      const upd = { ...cur };
+      const upd = { ...(ov[key][String(id)] || {}) };
       ['status','notes','followup_date'].forEach(k => { if (req.body[k] !== undefined) upd[k] = req.body[k]; });
       if (req.body.status && !['not contacted','draft'].includes(req.body.status))
         upd.last_contacted = new Date().toISOString().split('T')[0];
@@ -310,8 +302,8 @@ app.patch('/api/ceos/:id',  requireAuth, makePatch('ceos'));
 app.patch('/api/vcs/:id',   requireAuth, makePatch('vcs'));
 
 app.post('/api/reseed', requireAuth, (req, res) => {
-  saveOverrides({ firms: {}, ceos: {}, vcs: {} });
-  res.json({ ok: true, message: 'Overrides cleared.' });
+  saveOverrides({ firms:{}, ceos:{}, vcs:{} });
+  res.json({ ok: true });
 });
 
 app.post('/api/sync', requireAuth, (req, res) => {
@@ -320,17 +312,16 @@ app.post('/api/sync', requireAuth, (req, res) => {
   let changed = 0;
   const ov = loadOverrides();
   ['firms','ceos','vcs'].forEach(key => {
-    const seed = readSeed(key);
-    seed.forEach(item => {
+    readSeed(key).forEach(item => {
       (item.contacts||[]).forEach(c => {
-        const match = updates.find(u => u.email && c.email && u.email.toLowerCase() === c.email.toLowerCase());
+        const match = updates.find(u => u.email && c.email &&
+          u.email.toLowerCase() === c.email.toLowerCase());
         if (!match) return;
         if (!ov[key]) ov[key] = {};
-        const cur = ov[key][String(item.id)] || {};
-        const upd = { ...cur };
+        const upd = { ...(ov[key][String(item.id)] || {}) };
         if (match.status) upd.status = match.status;
         if (match.note) {
-          const ts = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+          const ts = new Date().toLocaleDateString('en-US',{month:'short',day:'numeric'});
           upd.notes = upd.notes ? upd.notes+'\n['+ts+'] '+match.note : '['+ts+'] '+match.note;
         }
         upd.last_contacted = new Date().toISOString().split('T')[0];
