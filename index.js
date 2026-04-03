@@ -99,7 +99,10 @@ function runDailyCron() {
     const existing = ov[key] || {};
     pools[key] = seed.filter(item => {
       const status = (existing[String(item.id)] || {}).status || item.status || 'not contacted';
-      return status === 'not contacted';
+      // Only queue items that have at least one contact with a real email address.
+      // Placeholder entries ("Research needed", empty email) should never be drafted.
+      const hasContact = (item.contacts || []).some(c => c.email && c.email.trim().length > 0);
+      return status === 'not contacted' && hasContact;
     }).sort((a, b) => (a.tier || 99) - (b.tier || 99));
   });
 
