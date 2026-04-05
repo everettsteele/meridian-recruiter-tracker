@@ -51,7 +51,6 @@ function saveDynamic(contacts) {
   try { fs.writeFileSync(DYNAMIC_CONTACTS_PATH, JSON.stringify(contacts, null, 2)); } catch(e) { console.error('[ERROR]', e.message); }
 }
 
-// Statuses that are more authoritative than 'draft'.
 const SENT_STATUSES = new Set(['contacted', 'in conversation', 'bounced', 'passed', 'linkedin']);
 
 function getDB(key) {
@@ -186,7 +185,6 @@ console.log(`HopeSpot ready — seeds:${readSeed('firms').length}f/${readSeed('c
 const sessions = new Set();
 function requireAuth(req, res, next) {
   if (!PASSWORD) return next();
-  // API key auth: x-api-key header or Authorization: Bearer <key>
   if (API_KEY) {
     const headerKey = req.headers['x-api-key'] || (req.headers['authorization'] || '').replace('Bearer ', '').trim();
     if (headerKey && headerKey === API_KEY) return next();
@@ -212,8 +210,6 @@ app.get('/api/firms', requireAuth, (req, res) => res.json(getDB('firms')));
 app.get('/api/ceos',  requireAuth, (req, res) => res.json(getDB('ceos')));
 app.get('/api/vcs',   requireAuth, (req, res) => res.json(getDB('vcs')));
 
-// GET /api/due — contacts due for follow-up today or overdue
-// A contact is due when: status=contacted, followup_date <= today, is_job_search != false
 app.get('/api/due', requireAuth, (req, res) => {
   const today = todayET();
   const due = [];
@@ -226,11 +222,8 @@ app.get('/api/due', requireAuth, (req, res) => {
       if (status !== 'contacted') return;
       if (!followup || followup > today) return;
       if (!isJobSearch) return;
-
-      // Flatten contacts — return one entry per emailable contact
       const contacts = (item.contacts || []).filter(c => c.email && c.email.trim());
       const primaryContact = contacts[0] || {};
-
       due.push({
         track,
         org_id: item.id,
@@ -248,7 +241,6 @@ app.get('/api/due', requireAuth, (req, res) => {
     });
   });
 
-  // Include dynamic contacts that are due
   loadDynamic().forEach(item => {
     const status = item.status || 'contacted';
     const followup = item.followup_date;
@@ -273,19 +265,16 @@ app.get('/api/due', requireAuth, (req, res) => {
     });
   });
 
-  // Sort by followup_date ascending (most overdue first)
   due.sort((a, b) => (a.followup_date || '').localeCompare(b.followup_date || ''));
   res.json(due);
 });
 
-// GET /api/contacts — list dynamic contacts
 app.get('/api/contacts', requireAuth, (req, res) => {
   const contacts = loadDynamic();
   const { track } = req.query;
   res.json(track ? contacts.filter(c => c.track === track) : contacts);
 });
 
-// POST /api/contacts/import — bulk import dynamic contacts, deduplicates by email
 app.post('/api/contacts/import', requireAuth, (req, res) => {
   const entries = req.body;
   if (!Array.isArray(entries)) return res.status(400).json({ error: 'Expected array' });
@@ -306,7 +295,6 @@ app.post('/api/contacts/import', requireAuth, (req, res) => {
   res.json({ ok: true, inserted, updated, total: contacts.length });
 });
 
-// PATCH /api/contacts/:id — update a dynamic contact
 app.patch('/api/contacts/:id', requireAuth, (req, res) => {
   const contacts = loadDynamic();
   const idx = contacts.findIndex(c => c.id === req.params.id);
@@ -324,12 +312,9 @@ app.post('/api/cron/run', requireAuth, (req, res) => {
   res.json({ ok: true, ...runDailyCron() });
 });
 
-// Public endpoint
 app.get('/api/debug', (req, res) => {
   const ov = loadOverrides();
   const today = todayET();
-
-  // Count due contacts for dueCount
   let dueCount = 0;
   PILLARS.forEach(track => {
     getDB(track).forEach(item => {
@@ -339,9 +324,8 @@ app.get('/api/debug', (req, res) => {
   loadDynamic().forEach(item => {
     if (item.status === 'contacted' && item.followup_date && item.followup_date <= today && item.is_job_search !== false) dueCount++;
   });
-
   res.json({
-    version: '3.0',
+    version: '3.1',
     seedCounts: { firms: readSeed('firms').length, ceos: readSeed('ceos').length, vcs: readSeed('vcs').length },
     dynamicCount: loadDynamic().length,
     overrideCounts: { firms: Object.keys(ov.firms||{}).length, ceos: Object.keys(ov.ceos||{}).length, vcs: Object.keys(ov.vcs||{}).length },
@@ -413,7 +397,8 @@ app.get('/api/stats', requireAuth, (req, res) => {
 });
 
 const VALID_STATUSES = ['not contacted','draft','linkedin','contacted','in conversation','bounced','passed'];
-const EXTENDED_FIELDS = ['status','notes','followup_date','is_job_search','gmail_thread_id','cadence_day'];
+// last_contacted is now settable explicitly so historical dates can be corrected
+const EXTENDED_FIELDS = ['status','notes','followup_date','is_job_search','gmail_thread_id','cadence_day','last_contacted'];
 
 function makePatch(key) {
   return (req, res) => {
@@ -429,8 +414,9 @@ function makePatch(key) {
       if (!ov[key]) ov[key] = {};
       const upd = { ...(ov[key][String(id)] || {}) };
       EXTENDED_FIELDS.forEach(k => { if (req.body[k] !== undefined) upd[k] = req.body[k]; });
-      if (req.body.status && !['not contacted','draft'].includes(req.body.status))
-        upd.last_contacted = new Date().toISOString().split('T')[0];
+      // Auto-set last_contacted only when status changes and no explicit date provided
+      if (req.body.status && !['not contacted','draft'].includes(req.body.status) && !req.body.last_contacted)
+        upd.last_contacted = todayET();
       ov[key][String(id)] = upd;
       saveOverrides(ov);
       res.json({ ...item, ...upd });
@@ -447,7 +433,6 @@ app.post('/api/reseed', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
-// POST /api/sync — update contacts by email match, now accepts extended fields
 app.post('/api/sync', requireAuth, (req, res) => {
   const updates = req.body.updates || [];
   if (!updates.length) return res.json({ ok: true, changed: 0 });
@@ -466,17 +451,16 @@ app.post('/api/sync', requireAuth, (req, res) => {
           const ts = new Date().toLocaleDateString('en-US',{month:'short',day:'numeric'});
           upd.notes = upd.notes ? upd.notes+'\n['+ts+'] '+match.note : '['+ts+'] '+match.note;
         }
-        // Extended fields
         ['gmail_thread_id','followup_date','cadence_day','is_job_search'].forEach(f => {
           if (match[f] !== undefined) upd[f] = match[f];
         });
-        upd.last_contacted = new Date().toISOString().split('T')[0];
+        // Use explicitly provided last_contacted; fall back to today only if not provided
+        upd.last_contacted = match.last_contacted || todayET();
         ov[key][String(item.id)] = upd;
         changed++;
       });
     });
   });
-  // Also sync dynamic contacts by email
   const dynamic = loadDynamic();
   let dynChanged = false;
   dynamic.forEach((item, idx) => {
@@ -491,7 +475,7 @@ app.post('/api/sync', requireAuth, (req, res) => {
     ['gmail_thread_id','followup_date','cadence_day','is_job_search'].forEach(f => {
       if (match[f] !== undefined) dynamic[idx][f] = match[f];
     });
-    dynamic[idx].last_contacted = new Date().toISOString().split('T')[0];
+    dynamic[idx].last_contacted = match.last_contacted || todayET();
     changed++;
     dynChanged = true;
   });
