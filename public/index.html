@@ -88,15 +88,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .seg-row:last-child{border-bottom:none}
 .seg-lbl{flex:1;color:#6B7280}
 .seg-val{font-weight:600;color:#1F2D3D}
-.chart-wrap{display:flex;align-items:flex-end;gap:20px;height:160px;padding-bottom:28px;position:relative;overflow-x:auto}
-.chart-col{display:flex;flex-direction:column;align-items:center;gap:0;flex-shrink:0}
+/* Chart — bars grow from bottom, counts float above each bar */
+.chart-wrap{display:flex;align-items:flex-end;gap:20px;padding:28px 0 28px;overflow-x:auto;overflow-y:visible;position:relative}
+.chart-col{display:flex;flex-direction:column;align-items:center;position:relative;flex-shrink:0}
 .chart-bar{width:40px;display:flex;flex-direction:column-reverse;border-radius:4px 4px 0 0;overflow:hidden}
 .chart-seg{width:100%;flex-shrink:0}
 .chart-label{font-size:10px;color:#9CA3AF;margin-top:6px;white-space:nowrap}
-.chart-count{font-size:11px;font-weight:600;color:#1F2D3D;margin-bottom:3px}
+.chart-count{position:absolute;top:-20px;left:50%;transform:translateX(-50%);font-size:11px;font-weight:600;color:#1F2D3D;white-space:nowrap}
 .legend{display:flex;gap:16px;margin-top:14px;flex-wrap:wrap}
 .legend-item{display:flex;align-items:center;gap:5px;font-size:11px;color:#6B7280}
 .legend-dot{width:10px;height:10px;border-radius:2px;flex-shrink:0}
+/* Dashboard main layout: chart left, SLA+template stacked right */
+.dash-main-row{display:grid;grid-template-columns:3fr 2fr;gap:16px;margin-bottom:16px;align-items:start}
+.right-stack{display:flex;flex-direction:column;gap:16px}
 .controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
 .search-box{flex:1;min-width:140px;padding:7px 12px;border:1px solid #E5E7EB;border-radius:8px;font-size:13px;outline:none}
 .search-box:focus{border-color:#F97316}
@@ -164,7 +168,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .perf-table .hl{color:#1F2D3D;font-weight:600}
 .sla-big{font-size:36px;font-weight:700;line-height:1}
 .sla-ok{color:#10B981}.sla-miss{color:#EF4444}
-.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
 .sector-filters{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;width:100%}
 /* Changelog modal */
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px}
@@ -199,7 +202,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   .topbar{display:none}
   .main{padding:16px}
   .dash-grid{grid-template-columns:1fr}
-  .two-col{grid-template-columns:1fr}
+  .dash-main-row{grid-template-columns:1fr}
   .queue-card{flex-wrap:wrap;gap:8px}
   .queue-card .btn{width:100%}
   .stats{grid-template-columns:repeat(3,1fr)}
@@ -216,7 +219,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 <div id="toast" class="toast"></div>
 <div id="sidebar-overlay" class="sidebar-overlay" onclick="closeSidebar()"></div>
 
-<!-- Changelog modal -->
 <div id="changelog-modal" class="modal-overlay" style="display:none" onclick="if(event.target===this)hideChangelog()">
   <div class="modal">
     <div class="modal-header">
@@ -228,7 +230,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     </div>
     <div class="modal-body">
       <div class="cl-version">
-        <div class="cl-ver-header"><span class="cl-ver-num current">v3.3</span><span class="cl-ver-label">Analytics Layer</span><span class="cl-ver-date">Apr 6, 2026</span></div>
+        <div class="cl-ver-header"><span class="cl-ver-num current">v3.4</span><span class="cl-ver-label">Dashboard Layout</span><span class="cl-ver-date">Apr 6, 2026</span></div>
+        <ul class="cl-changes">
+          <li>Chart moves to left column; SLA and Template A/B stack on the right<span class="cl-tag cl-tag-new">new</span></li>
+          <li>Bar chart count labels position as absolute above each bar, no more clipping<span class="cl-tag cl-tag-fix">fix</span></li>
+          <li>Sector table simplified: removed Bounced column, tighter presentation<span class="cl-tag cl-tag-fix">fix</span></li>
+        </ul>
+      </div>
+      <div class="cl-version">
+        <div class="cl-ver-header"><span class="cl-ver-num">v3.3</span><span class="cl-ver-label">Analytics Layer</span><span class="cl-ver-date">Apr 6, 2026</span></div>
         <ul class="cl-changes">
           <li>Sector tags on all CEO contacts (Healthtech, Revenue/GTM, Analytics, FinTech, Vertical SaaS, General)<span class="cl-tag cl-tag-new">new</span></li>
           <li>Template version tracking (v1 vs v2) for A/B performance comparison<span class="cl-tag cl-tag-new">new</span></li>
@@ -243,63 +253,49 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
         <div class="cl-ver-header"><span class="cl-ver-num">v3.2</span><span class="cl-ver-label">Mobile + Queue Fix</span><span class="cl-ver-date">Apr 6, 2026</span></div>
         <ul class="cl-changes">
           <li>Mobile responsive layout: hamburger menu, slide-out sidebar, full-width content<span class="cl-tag cl-tag-new">new</span></li>
-          <li>Fixed org_name display bug (VCs now show firm name, CEOs show company name)<span class="cl-tag cl-tag-fix">fix</span></li>
+          <li>Fixed org_name display bug (VCs show firm name, CEOs show company name)<span class="cl-tag cl-tag-fix">fix</span></li>
           <li>Refresh toast shows live due count and draft count<span class="cl-tag cl-tag-fix">fix</span></li>
           <li>Follow Up Today pulls from /api/due (authoritative), not client-side filter<span class="cl-tag cl-tag-fix">fix</span></li>
           <li>API key login stored in localStorage, survives server restarts<span class="cl-tag cl-tag-fix">fix</span></li>
-          <li>Run Queue button explains already-loaded vs stages new contacts<span class="cl-tag cl-tag-fix">fix</span></li>
         </ul>
       </div>
       <div class="cl-version">
         <div class="cl-ver-header"><span class="cl-ver-num">v3.1</span><span class="cl-ver-label">Dynamic Contacts</span><span class="cl-ver-date">Apr 5, 2026</span></div>
         <ul class="cl-changes">
-          <li>Dynamic contacts import via POST /api/contacts/import (deduplicates by email)<span class="cl-tag cl-tag-new">new</span></li>
+          <li>Dynamic contacts import via POST /api/contacts/import<span class="cl-tag cl-tag-new">new</span></li>
           <li>PATCH /api/contacts/:id for individual dynamic contact updates<span class="cl-tag cl-tag-new">new</span></li>
-          <li>POST /api/sync for bulk email-matched status updates across all pillars<span class="cl-tag cl-tag-new">new</span></li>
-          <li>is_job_search flag to exclude non-search contacts from queue and /api/due<span class="cl-tag cl-tag-new">new</span></li>
-          <li>Dynamic contacts appear in Follow Up Today alongside seed contacts<span class="cl-tag cl-tag-new">new</span></li>
+          <li>POST /api/sync for bulk email-matched status updates<span class="cl-tag cl-tag-new">new</span></li>
+          <li>is_job_search flag to exclude non-search contacts from queue<span class="cl-tag cl-tag-new">new</span></li>
         </ul>
       </div>
       <div class="cl-version">
         <div class="cl-ver-header"><span class="cl-ver-num">v3.0</span><span class="cl-ver-label">Auth Hardening + Due Queue</span><span class="cl-ver-date">Apr 4, 2026</span></div>
         <ul class="cl-changes">
           <li>x-api-key header auth bypasses session, survives server restarts<span class="cl-tag cl-tag-infra">infra</span></li>
-          <li>GET /api/due returns authoritative follow-up queue filtered by date and status<span class="cl-tag cl-tag-new">new</span></li>
-          <li>Cadence day tracking (Day 1, Day 5, Day 10...)<span class="cl-tag cl-tag-new">new</span></li>
-          <li>Gmail thread ID storage per contact<span class="cl-tag cl-tag-new">new</span></li>
-          <li>/api/cron/run rate-limited to once per 60 seconds<span class="cl-tag cl-tag-fix">fix</span></li>
-          <li>days_since_contact computed from last_contacted field<span class="cl-tag cl-tag-new">new</span></li>
+          <li>GET /api/due returns authoritative follow-up queue filtered by date<span class="cl-tag cl-tag-new">new</span></li>
+          <li>Cadence day tracking, Gmail thread ID storage<span class="cl-tag cl-tag-new">new</span></li>
         </ul>
       </div>
       <div class="cl-version">
         <div class="cl-ver-header"><span class="cl-ver-num">v2.0</span><span class="cl-ver-label">Railway Deploy + Persistence</span><span class="cl-ver-date">Apr 2, 2026</span></div>
         <ul class="cl-changes">
-          <li>Railway deployment with persistent /app/data volume (data survives redeploys)<span class="cl-tag cl-tag-infra">infra</span></li>
-          <li>Override system: seeds are read-only, all changes stored in overrides.json<span class="cl-tag cl-tag-infra">infra</span></li>
-          <li>Session-based password authentication<span class="cl-tag cl-tag-infra">infra</span></li>
-          <li>4-pillar cron allocation with surplus redistribution (firms/ceos/vcs balanced)<span class="cl-tag cl-tag-new">new</span></li>
-          <li>GET /api/debug for live system state inspection<span class="cl-tag cl-tag-new">new</span></li>
-          <li>Boot check: queue auto-runs on server start if not already run today<span class="cl-tag cl-tag-new">new</span></li>
+          <li>Railway deployment with persistent /app/data volume<span class="cl-tag cl-tag-infra">infra</span></li>
+          <li>Override system: seeds read-only, changes in overrides.json<span class="cl-tag cl-tag-infra">infra</span></li>
+          <li>Session-based password auth, /api/debug endpoint<span class="cl-tag cl-tag-new">new</span></li>
         </ul>
       </div>
       <div class="cl-version">
         <div class="cl-ver-header"><span class="cl-ver-num">v1.0</span><span class="cl-ver-label">Initial Launch</span><span class="cl-ver-date">Apr 1, 2026</span></div>
         <ul class="cl-changes">
-          <li>Three pillars: Recruiters, Direct CEO, VC Firms<span class="cl-tag cl-tag-new">new</span></li>
-          <li>Seed-based contact data (seed_firms.json, seed_ceos.json, seed_vcs.json)<span class="cl-tag cl-tag-new">new</span></li>
+          <li>Three pillars: Recruiters, Direct CEO, VC Firms; seed-based data<span class="cl-tag cl-tag-new">new</span></li>
           <li>Daily cron queue, 6 AM ET, 15 contacts/day with tier prioritization<span class="cl-tag cl-tag-new">new</span></li>
-          <li>Morning Queue view with Send Now and Follow Up Today sections<span class="cl-tag cl-tag-new">new</span></li>
-          <li>Dashboard with daily activity bar chart and segment stats<span class="cl-tag cl-tag-new">new</span></li>
-          <li>Six contact statuses: not contacted, draft, linkedin, contacted, in conversation, bounced, passed<span class="cl-tag cl-tag-new">new</span></li>
-          <li>Notes, follow-up dates, and full contact card editing per record<span class="cl-tag cl-tag-new">new</span></li>
-          <li>Search and status filter on all list views<span class="cl-tag cl-tag-new">new</span></li>
+          <li>Morning Queue, Dashboard, and per-pillar list views<span class="cl-tag cl-tag-new">new</span></li>
         </ul>
       </div>
       <div class="cl-version">
         <div class="cl-ver-header"><span class="cl-ver-num">v0.1</span><span class="cl-ver-label">Proof of Concept</span><span class="cl-ver-date">Mar 31, 2026</span></div>
         <ul class="cl-changes">
-          <li>Static recruiter contact list, browser-only state<span class="cl-tag cl-tag-new">new</span></li>
-          <li>Manual status tracking with no persistence<span class="cl-tag cl-tag-new">new</span></li>
+          <li>Static recruiter list, browser-only state, no persistence<span class="cl-tag cl-tag-new">new</span></li>
         </ul>
       </div>
     </div>
@@ -359,7 +355,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     </div>
     <div class="sidebar-footer">
       <span>everett.steele@gmail.com</span>
-      <span class="version-badge" onclick="showChangelog()">v3.3</span>
+      <span class="version-badge" onclick="showChangelog()">v3.4</span>
     </div>
   </nav>
 
@@ -442,7 +438,7 @@ async function loadAll(){
   const h=authFetchHeaders();
   try{
     const [fr,cr,vr,sr,dr]=await Promise.all([fetch('/api/firms',{headers:h}),fetch('/api/ceos',{headers:h}),fetch('/api/vcs',{headers:h}),fetch('/api/stats',{headers:h}),fetch('/api/due',{headers:h})]);
-    if(fr.status===401||cr.status===401){localStorage.removeItem(STORAGE_KEY);if(!API_KEY_MODE){TOKEN='';showLogin('Session expired — sign in again.');return;}}
+    if(fr.status===401||cr.status===401){localStorage.removeItem(STORAGE_KEY);if(!API_KEY_MODE){TOKEN='';showLogin('Session expired \u2014 sign in again.');return;}}
     [DATA,CEOs,VCs,STATS,DUE]=await Promise.all([fr.json(),cr.json(),vr.json(),sr.json(),dr.json()]);
   }catch(e){DATA=[];CEOs=[];VCs=[];STATS=null;DUE=[];}
   updateBadges();renderCurrent();
@@ -542,43 +538,56 @@ function renderDashboard(){
   const {segments,daily,totals}=STATS;
   const overallRate=totals.contacted>0?Math.round((totals.inConversation/totals.contacted)*100):0;
   const maxD=daily.length?Math.max(...daily.map(d=>d.total),1):1;
-  const CHART_H=120;
-  let html='<div class="stats"><div class="stat"><div class="stat-label">Outreach</div><div class="stat-val">'+totals.contacted+'</div><div class="stat-sub">sent</div></div><div class="stat"><div class="stat-label">Replies</div><div class="stat-val">'+totals.inConversation+'</div><div class="stat-sub">in convo</div></div><div class="stat"><div class="stat-label">Rate</div><div class="stat-val">'+overallRate+'%</div></div><div class="stat"><div class="stat-label">Due</div><div class="stat-val" style="color:#EF4444">'+DUE.length+'</div></div><div class="stat"><div class="stat-label">Bounced</div><div class="stat-val">'+totals.bounced+'</div></div></div>';
+  const CHART_H=140;
   const bc=['#3B82F6','#F97316','#10B981'];
+
+  // Segment cards
+  let html='<div class="stats"><div class="stat"><div class="stat-label">Outreach</div><div class="stat-val">'+totals.contacted+'</div><div class="stat-sub">sent</div></div><div class="stat"><div class="stat-label">Replies</div><div class="stat-val">'+totals.inConversation+'</div><div class="stat-sub">in convo</div></div><div class="stat"><div class="stat-label">Rate</div><div class="stat-val">'+overallRate+'%</div></div><div class="stat"><div class="stat-label">Due</div><div class="stat-val" style="color:#EF4444">'+DUE.length+'</div></div><div class="stat"><div class="stat-label">Bounced</div><div class="stat-val">'+totals.bounced+'</div></div></div>';
   html+='<div class="dash-grid">';
   segments.forEach((s,i)=>{const pct=s.contacted>0?Math.round((s.conv/s.contacted)*100):0;html+='<div class="dash-card"><div class="dash-card-title">'+s.label+'</div><div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:14px"><div><div class="big-num">'+s.contacted+'</div><div class="big-sub">contacted</div></div><div class="rate-circle" style="border-color:'+bc[i]+'"><div class="rate-pct">'+pct+'%</div><div class="rate-lbl">replies</div></div></div><div class="seg-row"><span class="seg-lbl">In conversation</span><span class="seg-val">'+s.conv+'</span></div><div class="seg-row"><span class="seg-lbl">Drafts pending</span><span class="seg-val" style="color:#8B5CF6">'+s.drafts+'</span></div><div class="seg-row"><span class="seg-lbl">Bounced</span><span class="seg-val" style="color:#F59E0B">'+s.bounced+'</span></div></div>';});
   html+='</div>';
-  html+='<div class="dash-card" style="margin-bottom:16px"><div class="dash-card-title">Daily Outreach Activity</div>';
-  if(!daily.length){html+='<div style="color:#9CA3AF;font-size:13px">No activity yet.</div>';}
+
+  // Chart HTML
+  let chartInner='';
+  if(!daily.length){chartInner='<div style="color:#9CA3AF;font-size:13px;padding-top:12px">No activity yet.</div>';}
   else{
-    html+='<div class="chart-wrap">';
+    let bars='';
     daily.forEach(d=>{
       const totalH=Math.round((d.total/maxD)*CHART_H);
       const rH=d.total>0?Math.round((d.recruiters/d.total)*totalH):0;
       const cH=d.total>0?Math.round((d.ceos/d.total)*totalH):0;
       const vH=totalH-rH-cH;
       const label=new Date(d.date+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});
-      html+='<div class="chart-col"><div class="chart-count">'+d.total+'</div><div class="chart-bar" style="height:'+totalH+'px">'+(d.vcs?'<div class="chart-seg" style="height:'+vH+'px;background:#10B981"></div>':'')+(d.ceos?'<div class="chart-seg" style="height:'+cH+'px;background:#F97316"></div>':'')+(d.recruiters?'<div class="chart-seg" style="height:'+rH+'px;background:#3B82F6"></div>':'')+'</div><div class="chart-label">'+label+'</div></div>';
+      bars+='<div class="chart-col" style="height:'+totalH+'px"><div class="chart-count">'+d.total+'</div><div class="chart-bar" style="height:'+totalH+'px">'+(vH>0?'<div class="chart-seg" style="height:'+vH+'px;background:#10B981"></div>':'')+(cH>0?'<div class="chart-seg" style="height:'+cH+'px;background:#F97316"></div>':'')+(rH>0?'<div class="chart-seg" style="height:'+rH+'px;background:#3B82F6"></div>':'')+'</div><div class="chart-label">'+label+'</div></div>';
     });
-    html+='</div><div class="legend"><div class="legend-item"><div class="legend-dot" style="background:#3B82F6"></div>Recruiters</div><div class="legend-item"><div class="legend-dot" style="background:#F97316"></div>CEOs</div><div class="legend-item"><div class="legend-dot" style="background:#10B981"></div>VCs</div></div>';
+    chartInner='<div class="chart-wrap">'+bars+'</div><div class="legend"><div class="legend-item"><div class="legend-dot" style="background:#3B82F6"></div>Recruiters</div><div class="legend-item"><div class="legend-dot" style="background:#F97316"></div>CEOs</div><div class="legend-item"><div class="legend-dot" style="background:#10B981"></div>VCs</div></div>';
   }
-  html+='</div>';
+
+  // SLA + Template HTML
   const sla=STATS.slaStats||{target:10,dailyAvg7:0,onTrack:false};
   const tmplStats=STATS.templateStats||[];
-  html+='<div class="two-col">';
-  html+='<div class="dash-card"><div class="dash-card-title">SLA Compliance</div>';
-  html+='<div style="display:flex;align-items:flex-end;gap:8px;margin-bottom:6px"><div class="sla-big '+(sla.onTrack?'sla-ok':'sla-miss')+'">'+sla.dailyAvg7+'</div><div style="font-size:13px;color:#9CA3AF;padding-bottom:5px">/ '+sla.target+' target</div></div>';
-  html+='<div style="font-size:11px;color:'+(sla.onTrack?'#10B981':'#EF4444')+'">'+(sla.onTrack?'On track':'Below target')+'&nbsp;&#8212;&nbsp;7-day rolling avg</div></div>';
-  html+='<div class="dash-card"><div class="dash-card-title">Template A/B</div>';
-  if(!tmplStats.length){html+='<div style="color:#9CA3AF;font-size:12px">No data yet.</div>';}
-  else{html+='<table class="perf-table"><tr><th>Version</th><th>Sent</th><th>Replies</th><th>Rate</th></tr>'+tmplStats.map(t=>'<tr><td><span class="tv-badge tv-'+t.version+'">'+t.version+'</span></td><td>'+t.sent+'</td><td class="hl">'+t.replies+'</td><td>'+t.replyRate+'%</td></tr>').join('')+'</table>';}
-  html+='</div></div>';
+  let slaHtml='<div class="dash-card"><div class="dash-card-title">SLA Compliance</div>';
+  slaHtml+='<div style="display:flex;align-items:flex-end;gap:8px;margin-bottom:6px"><div class="sla-big '+(sla.onTrack?'sla-ok':'sla-miss')+'">'+sla.dailyAvg7+'</div><div style="font-size:13px;color:#9CA3AF;padding-bottom:5px">/ '+sla.target+' target</div></div>';
+  slaHtml+='<div style="font-size:11px;color:'+(sla.onTrack?'#10B981':'#EF4444')+'">'+(sla.onTrack?'On track':'Below target')+'&nbsp;&#8212;&nbsp;7-day rolling avg</div></div>';
+  let tmplHtml='<div class="dash-card"><div class="dash-card-title">Template A/B</div>';
+  if(!tmplStats.length){tmplHtml+='<div style="color:#9CA3AF;font-size:12px">No data yet.</div>';}
+  else{tmplHtml+='<table class="perf-table"><tr><th>Version</th><th>Sent</th><th>Replies</th><th>Rate</th></tr>'+tmplStats.map(t=>'<tr><td><span class="tv-badge tv-'+t.version+'">'+t.version+'</span></td><td>'+t.sent+'</td><td class="hl">'+t.replies+'</td><td>'+t.replyRate+'%</td></tr>').join('')+'</table>';}
+  tmplHtml+='</div>';
+
+  // Main layout: chart left, SLA+template stacked right
+  html+='<div class="dash-main-row">';
+  html+='<div class="dash-card"><div class="dash-card-title">Daily Outreach Activity</div>'+chartInner+'</div>';
+  html+='<div class="right-stack">'+slaHtml+tmplHtml+'</div>';
+  html+='</div>';
+
+  // Sector breakdown — full width, Sent/Replies/Rate only
   const secStats=STATS.sectorStats||[];
   if(secStats.length){
     html+='<div class="dash-card" style="margin-bottom:16px"><div class="dash-card-title">CEO Outreach by Sector</div>';
-    html+='<table class="perf-table"><tr><th>Sector</th><th>Sent</th><th>Bounced</th><th>Replies</th><th>Rate</th></tr>'+secStats.map(s=>'<tr><td><span class="sector-badge sector-'+s.sector+'">'+s.label+'</span></td><td>'+s.sent+'</td><td>'+s.bounced+'</td><td class="hl">'+s.replies+'</td><td>'+s.replyRate+'%</td></tr>').join('')+'</table>';
+    html+='<table class="perf-table"><tr><th>Sector</th><th>Sent</th><th>Replies</th><th>Rate</th></tr>'+secStats.map(s=>'<tr><td><span class="sector-badge sector-'+s.sector+'">'+s.label+'</span></td><td>'+s.sent+'</td><td class="hl">'+s.replies+'</td><td>'+s.replyRate+'%</td></tr>').join('')+'</table>';
     html+='</div>';
   }
+
   document.getElementById('main-content').innerHTML=html;
 }
 
