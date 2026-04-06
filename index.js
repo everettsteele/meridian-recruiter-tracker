@@ -331,7 +331,7 @@ app.get('/api/debug', (req, res) => {
     if (item.status === 'contacted' && item.followup_date && item.followup_date <= today && item.is_job_search !== false) dueCount++;
   });
   res.json({
-    version: '3.3',
+    version: '3.4',
     seedCounts: { firms: readSeed('firms').length, ceos: readSeed('ceos').length, vcs: readSeed('vcs').length },
     dynamicCount: loadDynamic().length,
     overrideCounts: { firms: Object.keys(ov.firms||{}).length, ceos: Object.keys(ov.ceos||{}).length, vcs: Object.keys(ov.vcs||{}).length },
@@ -355,6 +355,9 @@ app.get('/api/debug', (req, res) => {
     todayET: today,
   });
 });
+
+// Sectors excluded from the outreach performance table (warm network, not cold outreach)
+const SECTOR_EXCLUDE_FROM_TABLE = new Set(['network']);
 
 app.get('/api/stats', requireAuth, (req, res) => {
   const firms = getDB('firms');
@@ -389,7 +392,7 @@ app.get('/api/stats', requireAuth, (req, res) => {
     }
   });
 
-  // Sector stats (CEO only)
+  // Sector stats (CEO only, excludes warm network sectors)
   const SECTOR_MAP = {
     healthtech:'Healthtech', revenue_gtm:'Revenue/GTM', analytics:'Analytics',
     fintech:'FinTech', vertical_saas:'Vertical SaaS', general:'General SaaS', network:'Network'
@@ -400,13 +403,15 @@ app.get('/api/stats', requireAuth, (req, res) => {
     if (!sectorBuckets[s]) sectorBuckets[s] = [];
     sectorBuckets[s].push(item);
   });
-  const sectorStats = Object.entries(sectorBuckets).map(([sector, items]) => {
-    const sent    = items.filter(x => ['contacted','in conversation','bounced'].includes(x.status)).length;
-    const replies = items.filter(x => x.status === 'in conversation').length;
-    const bounced = items.filter(x => x.status === 'bounced' || (x.contacts||[]).some(c=>c.status==='bounced')).length;
-    return { sector, label: SECTOR_MAP[sector]||sector, sent, replies, bounced,
-      replyRate: sent > 0 ? Math.round((replies/sent)*100) : 0 };
-  }).sort((a,b) => b.sent - a.sent);
+  const sectorStats = Object.entries(sectorBuckets)
+    .filter(([sector]) => !SECTOR_EXCLUDE_FROM_TABLE.has(sector))
+    .map(([sector, items]) => {
+      const sent    = items.filter(x => ['contacted','in conversation','bounced'].includes(x.status)).length;
+      const replies = items.filter(x => x.status === 'in conversation').length;
+      const bounced = items.filter(x => x.status === 'bounced' || (x.contacts||[]).some(c=>c.status==='bounced')).length;
+      return { sector, label: SECTOR_MAP[sector]||sector, sent, replies, bounced,
+        replyRate: sent > 0 ? Math.round((replies/sent)*100) : 0 };
+    }).sort((a,b) => b.sent - a.sent);
 
   // Template version stats (CEO only)
   const tmplBuckets = {};
