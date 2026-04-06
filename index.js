@@ -53,6 +53,13 @@ function saveDynamic(contacts) {
 
 const SENT_STATUSES = new Set(['contacted', 'in conversation', 'bounced', 'passed', 'linkedin']);
 
+// Each seed track uses a different field for the display name
+function orgName(track, item) {
+  if (track === 'ceos') return item.company || item.name || '';
+  if (track === 'vcs')  return item.firm    || item.name || '';
+  return item.name || '';
+}
+
 function getDB(key) {
   const seed = readSeed(key);
   const ov = (loadOverrides()[key]) || {};
@@ -227,7 +234,7 @@ app.get('/api/due', requireAuth, (req, res) => {
       due.push({
         track,
         org_id: item.id,
-        org_name: item.name,
+        org_name: orgName(track, item),
         contact_name: primaryContact.name || '',
         contact_email: primaryContact.email || '',
         followup_date: followup,
@@ -325,7 +332,7 @@ app.get('/api/debug', (req, res) => {
     if (item.status === 'contacted' && item.followup_date && item.followup_date <= today && item.is_job_search !== false) dueCount++;
   });
   res.json({
-    version: '3.1',
+    version: '3.2',
     seedCounts: { firms: readSeed('firms').length, ceos: readSeed('ceos').length, vcs: readSeed('vcs').length },
     dynamicCount: loadDynamic().length,
     overrideCounts: { firms: Object.keys(ov.firms||{}).length, ceos: Object.keys(ov.ceos||{}).length, vcs: Object.keys(ov.vcs||{}).length },
@@ -397,7 +404,6 @@ app.get('/api/stats', requireAuth, (req, res) => {
 });
 
 const VALID_STATUSES = ['not contacted','draft','linkedin','contacted','in conversation','bounced','passed'];
-// last_contacted is now settable explicitly so historical dates can be corrected
 const EXTENDED_FIELDS = ['status','notes','followup_date','is_job_search','gmail_thread_id','cadence_day','last_contacted'];
 
 function makePatch(key) {
@@ -409,12 +415,11 @@ function makePatch(key) {
         return res.status(400).json({ error: 'Invalid status value' });
       const id = parseInt(req.params.id);
       const item = readSeed(key).find(x => x.id === id);
-      if (!item) return res.status(404).json({ error: 'Not found' });
+      if (!item) return res.status(404).json({ error: 'Not found' });  
       const ov = loadOverrides();
       if (!ov[key]) ov[key] = {};
       const upd = { ...(ov[key][String(id)] || {}) };
       EXTENDED_FIELDS.forEach(k => { if (req.body[k] !== undefined) upd[k] = req.body[k]; });
-      // Auto-set last_contacted only when status changes and no explicit date provided
       if (req.body.status && !['not contacted','draft'].includes(req.body.status) && !req.body.last_contacted)
         upd.last_contacted = todayET();
       ov[key][String(id)] = upd;
@@ -454,7 +459,6 @@ app.post('/api/sync', requireAuth, (req, res) => {
         ['gmail_thread_id','followup_date','cadence_day','is_job_search'].forEach(f => {
           if (match[f] !== undefined) upd[f] = match[f];
         });
-        // Use explicitly provided last_contacted; fall back to today only if not provided
         upd.last_contacted = match.last_contacted || todayET();
         ov[key][String(item.id)] = upd;
         changed++;
