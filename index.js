@@ -53,7 +53,6 @@ function saveDynamic(contacts) {
 
 const SENT_STATUSES = new Set(['contacted', 'in conversation', 'bounced', 'passed', 'linkedin']);
 
-// Each seed track uses a different field for the display name
 function orgName(track, item) {
   if (track === 'ceos') return item.company || item.name || '';
   if (track === 'vcs')  return item.firm    || item.name || '';
@@ -332,7 +331,7 @@ app.get('/api/debug', (req, res) => {
     if (item.status === 'contacted' && item.followup_date && item.followup_date <= today && item.is_job_search !== false) dueCount++;
   });
   res.json({
-    version: '3.2',
+    version: '3.3',
     seedCounts: { firms: readSeed('firms').length, ceos: readSeed('ceos').length, vcs: readSeed('vcs').length },
     dynamicCount: loadDynamic().length,
     overrideCounts: { firms: Object.keys(ov.firms||{}).length, ceos: Object.keys(ov.ceos||{}).length, vcs: Object.keys(ov.vcs||{}).length },
@@ -390,6 +389,49 @@ app.get('/api/stats', requireAuth, (req, res) => {
     }
   });
 
+  // Sector stats (CEO only)
+  const SECTOR_MAP = {
+    healthtech:'Healthtech', revenue_gtm:'Revenue/GTM', analytics:'Analytics',
+    fintech:'FinTech', vertical_saas:'Vertical SaaS', general:'General SaaS', network:'Network'
+  };
+  const sectorBuckets = {};
+  ceos.forEach(item => {
+    const s = item.sector || 'general';
+    if (!sectorBuckets[s]) sectorBuckets[s] = [];
+    sectorBuckets[s].push(item);
+  });
+  const sectorStats = Object.entries(sectorBuckets).map(([sector, items]) => {
+    const sent    = items.filter(x => ['contacted','in conversation','bounced'].includes(x.status)).length;
+    const replies = items.filter(x => x.status === 'in conversation').length;
+    const bounced = items.filter(x => x.status === 'bounced' || (x.contacts||[]).some(c=>c.status==='bounced')).length;
+    return { sector, label: SECTOR_MAP[sector]||sector, sent, replies, bounced,
+      replyRate: sent > 0 ? Math.round((replies/sent)*100) : 0 };
+  }).sort((a,b) => b.sent - a.sent);
+
+  // Template version stats (CEO only)
+  const tmplBuckets = {};
+  ceos.forEach(item => {
+    const v = item.template_version || 'v1';
+    if (!tmplBuckets[v]) tmplBuckets[v] = [];
+    tmplBuckets[v].push(item);
+  });
+  const templateStats = Object.entries(tmplBuckets).map(([version, items]) => {
+    const sent    = items.filter(x => ['contacted','in conversation','bounced'].includes(x.status)).length;
+    const replies = items.filter(x => x.status === 'in conversation').length;
+    const bounced = items.filter(x => x.status === 'bounced' || (x.contacts||[]).some(c=>c.status==='bounced')).length;
+    return { version, sent, replies, bounced, replyRate: sent > 0 ? Math.round((replies/sent)*100) : 0 };
+  }).sort((a,b) => a.version.localeCompare(b.version));
+
+  // SLA stats — 7-day rolling average vs 10/day target
+  const todayStr = todayET();
+  const cutoffDate = new Date(todayStr + 'T12:00:00-05:00');
+  cutoffDate.setDate(cutoffDate.getDate() - 6);
+  const cutoffStr = cutoffDate.toISOString().split('T')[0];
+  let totalRecent = 0;
+  Object.entries(byDate).forEach(([d, v]) => { if (d >= cutoffStr) totalRecent += v.total; });
+  const dailyAvg7 = Math.round(totalRecent / 7);
+  const slaStats = { target: 10, dailyAvg7, onTrack: dailyAvg7 >= 10 };
+
   res.json({
     segments: [seg(firms,'Recruiters'), seg(ceos,'Direct CEO'), seg(vcs,'VC Firms')],
     daily: Object.entries(byDate).sort(([a],[b])=>a>b?1:-1).map(([date,counts])=>({date,...counts})),
@@ -399,7 +441,10 @@ app.get('/api/stats', requireAuth, (req, res) => {
       drafts: allItems.filter(x => x.status === 'draft').length,
       bounced: allItems.filter(x => x.status === 'bounced').length,
       total: allItems.length,
-    }
+    },
+    sectorStats,
+    templateStats,
+    slaStats,
   });
 });
 

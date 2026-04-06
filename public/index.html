@@ -103,9 +103,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .cards{display:flex;flex-direction:column;gap:8px}
 .card{background:#fff;border-radius:10px;border:1px solid #E5E7EB;overflow:hidden;transition:box-shadow .15s}
 .card:hover{box-shadow:0 2px 8px rgba(0,0,0,.06)}
-.card-header{display:flex;align-items:center;gap:10px;padding:13px 16px;cursor:pointer;user-select:none}
+.card-header{display:flex;align-items:center;gap:8px;padding:13px 16px;cursor:pointer;user-select:none;flex-wrap:wrap}
 .tier-badge{background:#F3F4F6;color:#6B7280;font-size:10px;font-weight:700;border-radius:4px;padding:2px 6px;letter-spacing:.03em;flex-shrink:0}
-.card-name{font-size:14px;font-weight:600;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card-name{font-size:14px;font-weight:600;flex:1;min-width:120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sdot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
 .sdot-contacted{background:#3B82F6}.sdot-in-conversation{background:#10B981}
 .sdot-not-contacted{background:#D1D5DB}.sdot-passed{background:#EF4444}
@@ -144,6 +144,32 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .login-btn{width:100%;padding:10px;background:#F97316;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer}
 .login-err{color:#EF4444;font-size:12px;margin-top:8px;display:none}
 .login-status{font-size:12px;color:#9CA3AF;margin-top:8px;text-align:center}
+/* Sector badges */
+.sector-badge{font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;letter-spacing:.03em;white-space:nowrap;flex-shrink:0}
+.sector-healthtech{background:#CCFBF1;color:#0D9488}
+.sector-revenue_gtm{background:#EFF6FF;color:#3B82F6}
+.sector-analytics{background:#EDE9FE;color:#7C3AED}
+.sector-fintech{background:#FEF3C7;color:#D97706}
+.sector-vertical_saas{background:#FFF7ED;color:#EA580C}
+.sector-general,.sector-network{background:#F3F4F6;color:#6B7280}
+/* Template version badges */
+.tv-badge{font-size:9px;font-weight:700;padding:2px 5px;border-radius:3px;letter-spacing:.04em;flex-shrink:0;font-family:monospace}
+.tv-v1{background:#F3F4F6;color:#9CA3AF}
+.tv-v2{background:#ECFDF5;color:#059669}
+/* Performance tables */
+.perf-table{width:100%;border-collapse:collapse;font-size:12px}
+.perf-table th{color:#9CA3AF;font-size:10px;text-transform:uppercase;letter-spacing:.05em;padding:4px 0 8px;border-bottom:1px solid #F3F4F6;font-weight:700;text-align:left}
+.perf-table td{padding:7px 0;border-bottom:1px solid #F3F4F6;color:#1F2D3D;vertical-align:middle}
+.perf-table tr:last-child td{border-bottom:none}
+.perf-table td+td{text-align:right;color:#6B7280}
+.perf-table .hl{color:#1F2D3D;font-weight:600}
+/* SLA card */
+.sla-big{font-size:36px;font-weight:700;line-height:1}
+.sla-ok{color:#10B981}.sla-miss{color:#EF4444}
+/* Two-col layout for dashboard */
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+/* Sector filter row */
+.sector-filters{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;width:100%}
 @media(max-width:768px){
   .sidebar{position:fixed;left:0;top:0;height:100vh;transform:translateX(-100%);z-index:200}
   .sidebar.mobile-open{transform:translateX(0)}
@@ -154,6 +180,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   .topbar{display:none}
   .main{padding:16px}
   .dash-grid{grid-template-columns:1fr}
+  .two-col{grid-template-columns:1fr}
   .queue-card{flex-wrap:wrap;gap:8px}
   .queue-card .btn{width:100%}
   .stats{grid-template-columns:repeat(3,1fr)}
@@ -253,9 +280,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
 <script>
 const STORAGE_KEY='hopespot_token',API_KEY_STORE='hopespot_apikey';
-let TOKEN='',API_KEY_MODE=false,DATA=[],CEOs=[],VCs=[],STATS=null,DUE=[],FILTER='all',TAB='queue';
+let TOKEN='',API_KEY_MODE=false,DATA=[],CEOs=[],VCs=[],STATS=null,DUE=[],FILTER='all',TAB='queue',SECTOR_FILTER='all';
 const TODAY=new Date().toISOString().split('T')[0];
 const TITLES={queue:['Morning Queue',"Today's outreach and follow-ups"],dashboard:['Dashboard','Outreach performance and activity'],recruiters:['Recruiters','Executive search firms'],ceos:['Direct CEO / Network','Referral asks and warm network contacts'],vcs:['VC Firms','Portfolio COO and operating partner outreach']};
+const SECTOR_LABELS={healthtech:'Healthtech',revenue_gtm:'Revenue/GTM',analytics:'Analytics',fintech:'FinTech',vertical_saas:'Vertical SaaS',general:'General SaaS',network:'Network'};
 
 function toast(msg,dur=3000){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),dur);}
 function setStatus(m){const e=document.getElementById('login-status');if(e)e.textContent=m;}
@@ -309,7 +337,7 @@ async function refreshData(){
   await loadAll();
   btn.classList.remove('spinning');btn.disabled=false;
   const draftCount=allItems().filter(x=>x.status==='draft').length;
-  toast(`Refreshed — ${DUE.length} follow-up${DUE.length!==1?'s':''} due, ${draftCount} draft${draftCount!==1?'s':''}`);
+  toast('Refreshed \u2014 '+DUE.length+' follow-up'+(DUE.length!==1?'s':'')+' due, '+draftCount+' draft'+(draftCount!==1?'s':''));
 }
 
 async function runQueue(){
@@ -318,7 +346,7 @@ async function runQueue(){
     const r=await fetch('/api/cron/run',{method:'POST',headers:authFetchHeaders()}).then(x=>x.json());
     await loadAll();
     if(r.skipped){toast('Queue already loaded for today. Use Refresh to check for new replies.');}
-    else{toast(`Queue loaded — ${r.totalDrafted} new contact${r.totalDrafted!==1?'s':''} staged`);}
+    else{toast('Queue loaded \u2014 '+r.totalDrafted+' new contact'+(r.totalDrafted!==1?'s':'')+' staged');}
   }catch(e){toast('Failed to run queue. Try refreshing.');}
   btn.disabled=false;
   btn.innerHTML='<svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg> Run Queue';
@@ -338,7 +366,7 @@ function updateBadges(){
 }
 
 function switchTab(t){
-  TAB=t;FILTER='all';
+  TAB=t;FILTER='all';SECTOR_FILTER='all';
   ['queue','dashboard','recruiters','ceos','vcs'].forEach(x=>document.getElementById('nav-'+x).classList.toggle('active',x===t));
   const [title,sub]=TITLES[t]||['',''];
   document.getElementById('topbar-title').textContent=title;
@@ -354,11 +382,11 @@ function renderQueue(){
   const followUp=[...DUE].sort((a,b)=>a.followup_date>b.followup_date?1:-1);
   const dateStr=new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
   const totalMin=Math.round(sendNow.length*0.4+followUp.length*1.5);
-  let html=`<div class="queue-date">${dateStr}</div><div class="queue-title">Morning Queue</div><div class="queue-sub">${sendNow.length} to send &nbsp;&middot;&nbsp; ${followUp.length} follow-ups &nbsp;&middot;&nbsp; ~${totalMin} min</div>`;
-  html+=`<div class="section-header"><div class="section-title">Send Now</div><div class="section-count">${sendNow.length} drafts waiting</div></div>`;
+  let html='<div class="queue-date">'+dateStr+'</div><div class="queue-title">Morning Queue</div><div class="queue-sub">'+sendNow.length+' to send &nbsp;&middot;&nbsp; '+followUp.length+' follow-ups &nbsp;&middot;&nbsp; ~'+totalMin+' min</div>';
+  html+='<div class="section-header"><div class="section-title">Send Now</div><div class="section-count">'+sendNow.length+' drafts waiting</div></div>';
   if(!sendNow.length)html+='<div class="empty" style="padding:20px 0">No drafts queued. Hit Run Queue to stage the next batch.</div>';
-  else['recruiter','ceo','vc'].forEach(p=>{sendNow.filter(x=>x._pillar===p).forEach(item=>{const c=(item.contacts||[]).find(c=>c.status==='draft')||(item.contacts||[])[0]||{};html+=`<div class="queue-card"><span class="pillar-tag pillar-${p}">${item._label}</span><div class="queue-info"><div class="queue-name">${item.name}</div><div class="queue-contact">${c.name||''}</div><div class="queue-email">${c.email||''}</div></div><button class="btn btn-send" onclick="markSent('${item._endpoint}',${item.id},this)">Mark Sent</button></div>`;});});
-  html+=`<div class="divider"></div><div class="section-header"><div class="section-title">Follow Up Today</div><div class="section-count">${followUp.length} due</div></div>`;
+  else['recruiter','ceo','vc'].forEach(p=>{sendNow.filter(x=>x._pillar===p).forEach(item=>{const c=(item.contacts||[]).find(c=>c.status==='draft')||(item.contacts||[])[0]||{};html+='<div class="queue-card"><span class="pillar-tag pillar-'+p+'">'+item._label+'</span><div class="queue-info"><div class="queue-name">'+item.name+'</div><div class="queue-contact">'+(c.name||'')+'</div><div class="queue-email">'+(c.email||'')+'</div></div><button class="btn btn-send" onclick="markSent(\'' +item._endpoint+'\','+item.id+',this)">Mark Sent</button></div>';});});
+  html+='<div class="divider"></div><div class="section-header"><div class="section-title">Follow Up Today</div><div class="section-count">'+followUp.length+' due</div></div>';
   if(!followUp.length)html+='<div class="empty" style="padding:20px 0">No follow-ups due today.</div>';
   else followUp.forEach(item=>{
     const ov=item.followup_date<TODAY;
@@ -366,8 +394,8 @@ function renderQueue(){
     const pillarLabel=item.track==='firms'?'Recruiter':item.track==='ceos'?'CEO':'VC';
     const endpointMap={firms:'/api/firms',ceos:'/api/ceos',vcs:'/api/vcs'};
     const ep=item.dynamic?null:endpointMap[item.track];
-    const logBtn=ep?`<button class="btn btn-followup" onclick="logFollowup('${ep}',${item.org_id})">Log</button>`:`<button class="btn btn-followup" onclick="logDynamic('${item.org_id}')">Log</button>`;
-    html+=`<div class="queue-card ${ov?'followup-overdue':'followup'}"><span class="pillar-tag pillar-${pillarKey}">${pillarLabel}</span><div class="queue-info"><div class="queue-name">${item.org_name}</div><div class="queue-contact">${item.contact_name}</div><div class="queue-email">${item.contact_email}</div><div class="queue-meta">Last contacted ${item.days_since_contact!=null?item.days_since_contact+' days ago':'\u2014'} &middot; Due ${item.followup_date} &middot; Day ${item.cadence_day||1}</div></div>${logBtn}</div>`;
+    const logBtn=ep?'<button class="btn btn-followup" onclick="logFollowup(\'' +ep+'\','+item.org_id+')">Log</button>':'<button class="btn btn-followup" onclick="logDynamic(\'' +item.org_id+'\')" >Log</button>';
+    html+='<div class="queue-card '+(ov?'followup-overdue':'followup')+'"><span class="pillar-tag pillar-'+pillarKey+'">'+pillarLabel+'</span><div class="queue-info"><div class="queue-name">'+item.org_name+'</div><div class="queue-contact">'+item.contact_name+'</div><div class="queue-email">'+item.contact_email+'</div><div class="queue-meta">Last contacted '+(item.days_since_contact!=null?item.days_since_contact+' days ago':'\u2014')+' &middot; Due '+item.followup_date+' &middot; Day '+(item.cadence_day||1)+'</div></div>'+logBtn+'</div>';
   });
   document.getElementById('main-content').innerHTML=html;
 }
@@ -375,21 +403,21 @@ function renderQueue(){
 async function markSent(endpoint,id,btn){
   btn.textContent='Sent \u2713';btn.disabled=true;btn.style.background='#10B981';
   const followup=new Date(Date.now()+7*864e5).toISOString().split('T')[0];
-  await fetch(`${endpoint}/${id}`,{method:'PATCH',headers:authHeaders(),body:JSON.stringify({status:'contacted',followup_date:followup})});
+  await fetch(endpoint+'/'+id,{method:'PATCH',headers:authHeaders(),body:JSON.stringify({status:'contacted',followup_date:followup})});
   await loadAll();
 }
 async function logFollowup(endpoint,id){
   const note=prompt('Follow-up note (blank to just reset date):');
   const newDate=new Date(Date.now()+7*864e5).toISOString().split('T')[0];
   const payload={followup_date:newDate,cadence_day:5};if(note)payload.notes=note;
-  await fetch(`${endpoint}/${id}`,{method:'PATCH',headers:authHeaders(),body:JSON.stringify(payload)});
+  await fetch(endpoint+'/'+id,{method:'PATCH',headers:authHeaders(),body:JSON.stringify(payload)});
   await loadAll();
 }
 async function logDynamic(id){
   const note=prompt('Follow-up note (blank to just reset date):');
   const newDate=new Date(Date.now()+7*864e5).toISOString().split('T')[0];
   const payload={followup_date:newDate,cadence_day:5};if(note)payload.notes=note;
-  await fetch(`/api/contacts/${id}`,{method:'PATCH',headers:authHeaders(),body:JSON.stringify(payload)});
+  await fetch('/api/contacts/'+id,{method:'PATCH',headers:authHeaders(),body:JSON.stringify(payload)});
   await loadAll();
 }
 
@@ -399,51 +427,96 @@ function renderDashboard(){
   const overallRate=totals.contacted>0?Math.round((totals.inConversation/totals.contacted)*100):0;
   const maxD=daily.length?Math.max(...daily.map(d=>d.total),1):1;
   const CHART_H=120;
-  let html=`<div class="stats"><div class="stat"><div class="stat-label">Outreach</div><div class="stat-val">${totals.contacted}</div><div class="stat-sub">sent</div></div><div class="stat"><div class="stat-label">Replies</div><div class="stat-val">${totals.inConversation}</div><div class="stat-sub">in convo</div></div><div class="stat"><div class="stat-label">Rate</div><div class="stat-val">${overallRate}%</div></div><div class="stat"><div class="stat-label">Due</div><div class="stat-val" style="color:#EF4444">${DUE.length}</div></div><div class="stat"><div class="stat-label">Bounced</div><div class="stat-val">${totals.bounced}</div></div></div>`;
+  let html='<div class="stats"><div class="stat"><div class="stat-label">Outreach</div><div class="stat-val">'+totals.contacted+'</div><div class="stat-sub">sent</div></div><div class="stat"><div class="stat-label">Replies</div><div class="stat-val">'+totals.inConversation+'</div><div class="stat-sub">in convo</div></div><div class="stat"><div class="stat-label">Rate</div><div class="stat-val">'+overallRate+'%</div></div><div class="stat"><div class="stat-label">Due</div><div class="stat-val" style="color:#EF4444">'+DUE.length+'</div></div><div class="stat"><div class="stat-label">Bounced</div><div class="stat-val">'+totals.bounced+'</div></div></div>';
   const bc=['#3B82F6','#F97316','#10B981'];
-  html+=`<div class="dash-grid">`;
-  segments.forEach((s,i)=>{const pct=s.contacted>0?Math.round((s.conv/s.contacted)*100):0;html+=`<div class="dash-card"><div class="dash-card-title">${s.label}</div><div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:14px"><div><div class="big-num">${s.contacted}</div><div class="big-sub">contacted</div></div><div class="rate-circle" style="border-color:${bc[i]}"><div class="rate-pct">${pct}%</div><div class="rate-lbl">replies</div></div></div><div class="seg-row"><span class="seg-lbl">In conversation</span><span class="seg-val">${s.conv}</span></div><div class="seg-row"><span class="seg-lbl">Drafts pending</span><span class="seg-val" style="color:#8B5CF6">${s.drafts}</span></div><div class="seg-row"><span class="seg-lbl">Bounced</span><span class="seg-val" style="color:#F59E0B">${s.bounced}</span></div></div>`;});
-  html+=`</div>`;
-  html+=`<div class="dash-card"><div class="dash-card-title">Daily Outreach Activity</div>`;
+  html+='<div class="dash-grid">';
+  segments.forEach((s,i)=>{const pct=s.contacted>0?Math.round((s.conv/s.contacted)*100):0;html+='<div class="dash-card"><div class="dash-card-title">'+s.label+'</div><div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:14px"><div><div class="big-num">'+s.contacted+'</div><div class="big-sub">contacted</div></div><div class="rate-circle" style="border-color:'+bc[i]+'"><div class="rate-pct">'+pct+'%</div><div class="rate-lbl">replies</div></div></div><div class="seg-row"><span class="seg-lbl">In conversation</span><span class="seg-val">'+s.conv+'</span></div><div class="seg-row"><span class="seg-lbl">Drafts pending</span><span class="seg-val" style="color:#8B5CF6">'+s.drafts+'</span></div><div class="seg-row"><span class="seg-lbl">Bounced</span><span class="seg-val" style="color:#F59E0B">'+s.bounced+'</span></div></div>';});
+  html+='</div>';
+  html+='<div class="dash-card" style="margin-bottom:16px"><div class="dash-card-title">Daily Outreach Activity</div>';
   if(!daily.length){html+='<div style="color:#9CA3AF;font-size:13px">No activity yet.</div>';}
   else{
-    html+=`<div class="chart-wrap">`;
+    html+='<div class="chart-wrap">';
     daily.forEach(d=>{
       const totalH=Math.round((d.total/maxD)*CHART_H);
       const rH=d.total>0?Math.round((d.recruiters/d.total)*totalH):0;
       const cH=d.total>0?Math.round((d.ceos/d.total)*totalH):0;
       const vH=totalH-rH-cH;
       const label=new Date(d.date+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});
-      html+=`<div class="chart-col"><div class="chart-count">${d.total}</div><div class="chart-bar" style="height:${totalH}px">${d.vcs?`<div class="chart-seg" style="height:${vH}px;background:#10B981"></div>`:''}${d.ceos?`<div class="chart-seg" style="height:${cH}px;background:#F97316"></div>`:''}${d.recruiters?`<div class="chart-seg" style="height:${rH}px;background:#3B82F6"></div>`:''}</div><div class="chart-label">${label}</div></div>`;
+      html+='<div class="chart-col"><div class="chart-count">'+d.total+'</div><div class="chart-bar" style="height:'+totalH+'px">'+(d.vcs?'<div class="chart-seg" style="height:'+vH+'px;background:#10B981"></div>':'')+(d.ceos?'<div class="chart-seg" style="height:'+cH+'px;background:#F97316"></div>':'')+(d.recruiters?'<div class="chart-seg" style="height:'+rH+'px;background:#3B82F6"></div>':'')+'</div><div class="chart-label">'+label+'</div></div>';
     });
-    html+=`</div><div class="legend"><div class="legend-item"><div class="legend-dot" style="background:#3B82F6"></div>Recruiters</div><div class="legend-item"><div class="legend-dot" style="background:#F97316"></div>CEOs</div><div class="legend-item"><div class="legend-dot" style="background:#10B981"></div>VCs</div></div>`;
+    html+='</div><div class="legend"><div class="legend-item"><div class="legend-dot" style="background:#3B82F6"></div>Recruiters</div><div class="legend-item"><div class="legend-dot" style="background:#F97316"></div>CEOs</div><div class="legend-item"><div class="legend-dot" style="background:#10B981"></div>VCs</div></div>';
   }
-  html+=`</div>`;
+  html+='</div>';
+  // SLA + Template row
+  const sla=STATS.slaStats||{target:10,dailyAvg7:0,onTrack:false};
+  const tmplStats=STATS.templateStats||[];
+  html+='<div class="two-col">';
+  html+='<div class="dash-card"><div class="dash-card-title">SLA Compliance</div>';
+  html+='<div style="display:flex;align-items:flex-end;gap:8px;margin-bottom:6px"><div class="sla-big '+(sla.onTrack?'sla-ok':'sla-miss')+'">'+sla.dailyAvg7+'</div><div style="font-size:13px;color:#9CA3AF;padding-bottom:5px">/ '+sla.target+' target</div></div>';
+  html+='<div style="font-size:11px;color:'+(sla.onTrack?'#10B981':'#EF4444')+'">'+(sla.onTrack?'On track':'Below target')+'&nbsp;&#8212;&nbsp;7-day rolling avg</div></div>';
+  html+='<div class="dash-card"><div class="dash-card-title">Template A/B</div>';
+  if(!tmplStats.length){html+='<div style="color:#9CA3AF;font-size:12px">No data yet.</div>';}
+  else{html+='<table class="perf-table"><tr><th>Version</th><th>Sent</th><th>Replies</th><th>Rate</th></tr>'+tmplStats.map(t=>'<tr><td><span class="tv-badge tv-'+t.version+'">'+t.version+'</span></td><td>'+t.sent+'</td><td class="hl">'+t.replies+'</td><td>'+t.replyRate+'%</td></tr>').join('')+'</table>';}
+  html+='</div></div>';
+  // Sector breakdown
+  const secStats=STATS.sectorStats||[];
+  if(secStats.length){
+    html+='<div class="dash-card" style="margin-bottom:16px"><div class="dash-card-title">CEO Outreach by Sector</div>';
+    html+='<table class="perf-table"><tr><th>Sector</th><th>Sent</th><th>Bounced</th><th>Replies</th><th>Rate</th></tr>'+secStats.map(s=>'<tr><td><span class="sector-badge sector-'+s.sector+'">'+s.label+'</span></td><td>'+s.sent+'</td><td>'+s.bounced+'</td><td class="hl">'+s.replies+'</td><td>'+s.replyRate+'%</td></tr>').join('')+'</table>';
+    html+='</div>';
+  }
   document.getElementById('main-content').innerHTML=html;
 }
 
 function currentData(){return TAB==='ceos'?CEOs:TAB==='vcs'?VCs:DATA;}
 function nameField(item){return TAB==='ceos'?item.company:TAB==='vcs'?item.firm:item.name;}
-function setFilter(f,btn){FILTER=f;document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderList();}
+function setFilter(f,btn){
+  FILTER=f;SECTOR_FILTER='all';
+  document.querySelectorAll('.filter-btn:not(.sfbtn)').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderList();
+}
+function setSectorFilter(f,btn){
+  SECTOR_FILTER=f;
+  document.querySelectorAll('.sfbtn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderList();
+}
 function renderList(){
   const q=(document.getElementById('search-input')||{}).value?.toLowerCase()||'';
   let items=currentData();
   const fMap={active:x=>['contacted','in conversation','draft','linkedin'].includes(x.status),draft:x=>x.status==='draft',contacted:x=>x.status==='contacted','in conversation':x=>x.status==='in conversation','not contacted':x=>x.status==='not contacted',bounced:x=>x.status==='bounced'||(x.contacts||[]).some(c=>c.status==='bounced'),passed:x=>x.status==='passed'};
   if(FILTER!=='all'&&fMap[FILTER])items=items.filter(fMap[FILTER]);
+  if(TAB==='ceos'&&SECTOR_FILTER!=='all')items=items.filter(x=>(x.sector||'general')===SECTOR_FILTER);
   if(q)items=items.filter(x=>nameField(x).toLowerCase().includes(q)||(x.why||'').toLowerCase().includes(q)||(x.notes||'').toLowerCase().includes(q)||(x.contacts||[]).some(c=>(c.name||'').toLowerCase().includes(q)||(c.email||'').toLowerCase().includes(q)));
   const all=currentData();
   const sMap=s=>all.filter(x=>x.status===s).length;
-  const statHtml=[['Total',all.length],['Draft',sMap('draft')],['Contacted',sMap('contacted')],['In Convo',sMap('in conversation')],['Bounced',all.filter(x=>x.status==='bounced'||(x.contacts||[]).some(c=>c.status==='bounced')).length]].map(([l,v])=>`<div class="stat"><div class="stat-label">${l}</div><div class="stat-val">${v}</div></div>`).join('');
-  const cardsHtml=items.length?items.map(item=>{const id=item.id,name=nameField(item);const dotCls='sdot-'+(item.status||'not-contacted').replace(/ /g,'-');const tier=item.tier?`<span class="tier-badge">T${item.tier}</span>`:TAB==='ceos'?'<span class="tier-badge">CEO</span>':'<span class="tier-badge">VC</span>';const contacts=(item.contacts||[]).map(c=>{const cs='cs-'+(c.status||'not-contacted').replace(/ /g,'-');return`<div class="contact-row"><div class="contact-info"><div class="contact-name">${c.name}</div>${c.title?`<div class="contact-title">${c.title}</div>`:''} ${c.email?`<div class="contact-email">${c.email}</div>`:''} ${c.notes?`<div class="contact-notes">${c.notes}</div>`:''}</div><span class="cs-tag ${cs}">${c.status||'not contacted'}</span></div>`;}).join('');return`<div class="card"><div class="card-header" onclick="toggle('${TAB}',${id})">${tier}<div class="card-name">${name}</div><span class="status-lbl">${item.status||'not contacted'}</span><span class="sdot ${dotCls}"></span></div><div class="card-body" id="body-${TAB}-${id}"><div class="why">${item.why||''}</div>${contacts?`<div class="sec-lbl">Contacts</div>${contacts}`:''}<div class="sec-lbl" style="margin-top:12px">Notes & Status</div><div class="field-row"><textarea class="notes-input" id="notes-${TAB}-${id}">${item.notes||''}</textarea><div style="display:flex;flex-direction:column;gap:6px"><select class="status-select" id="status-${TAB}-${id}">${['not contacted','draft','linkedin','contacted','in conversation','bounced','passed'].map(s=>`<option value="${s}"${item.status===s?' selected':''}>${s}</option>`).join('')}</select><input class="date-input" type="date" id="followup-${TAB}-${id}" value="${item.followup_date||''}"><button class="save-btn" onclick="save('${TAB}',${id})">Save</button></div></div></div></div>`;}).join(''):'<div class="empty">No results.</div>';
-  document.getElementById('main-content').innerHTML=`<div class="controls"><input class="search-box" type="text" id="search-input" placeholder="Search..." oninput="renderList()" value="${q}"><button class="filter-btn active" onclick="setFilter('all',this)">All</button><button class="filter-btn" onclick="setFilter('active',this)">Active</button><button class="filter-btn" onclick="setFilter('contacted',this)">Contacted</button><button class="filter-btn" onclick="setFilter('in conversation',this)">In Convo</button><button class="filter-btn" onclick="setFilter('not contacted',this)">Not Started</button><button class="filter-btn" onclick="setFilter('bounced',this)">Bounced</button></div><div class="stats">${statHtml}</div><div class="cards">${cardsHtml}</div>`;
+  const statHtml=[['Total',all.length],['Draft',sMap('draft')],['Contacted',sMap('contacted')],['In Convo',sMap('in conversation')],['Bounced',all.filter(x=>x.status==='bounced'||(x.contacts||[]).some(c=>c.status==='bounced')).length]].map(([l,v])=>'<div class="stat"><div class="stat-label">'+l+'</div><div class="stat-val">'+v+'</div></div>').join('');
+  // Sector filter row for CEO tab
+  let sectorRow='';
+  if(TAB==='ceos'){
+    const sectors=[...new Set(currentData().map(x=>x.sector||'general'))].filter(Boolean).sort();
+    const secBtns=sectors.map(s=>'<button class="filter-btn sfbtn'+(SECTOR_FILTER===s?' active':'')+' sector-'+s+'" onclick="setSectorFilter(\'' +s+'\',this)">'+(SECTOR_LABELS[s]||s)+'</button>').join('');
+    sectorRow='<div class="sector-filters"><button class="filter-btn sfbtn'+(SECTOR_FILTER==='all'?' active':'')+' " onclick="setSectorFilter(\'all\',this)">All Sectors</button>'+secBtns+'</div>';
+  }
+  const cardsHtml=items.length?items.map(item=>{
+    const id=item.id,name=nameField(item);
+    const dotCls='sdot-'+(item.status||'not-contacted').replace(/ /g,'-');
+    const tier=item.tier?'<span class="tier-badge">T'+item.tier+'</span>':TAB==='ceos'?'<span class="tier-badge">CEO</span>':'<span class="tier-badge">VC</span>';
+    const sectorBadge=TAB==='ceos'&&item.sector?'<span class="sector-badge sector-'+item.sector+'">'+(SECTOR_LABELS[item.sector]||item.sector)+'</span>':'';
+    const tvBadge=TAB==='ceos'&&item.template_version?'<span class="tv-badge tv-'+item.template_version+'">'+item.template_version+'</span>':'';
+    const contacts=(item.contacts||[]).map(c=>{const cs='cs-'+(c.status||'not-contacted').replace(/ /g,'-');return'<div class="contact-row"><div class="contact-info"><div class="contact-name">'+c.name+'</div>'+(c.title?'<div class="contact-title">'+c.title+'</div>':'')+(c.email?'<div class="contact-email">'+c.email+'</div>':'')+(c.notes?'<div class="contact-notes">'+c.notes+'</div>':'')+'</div><span class="cs-tag '+cs+'">'+( c.status||'not contacted')+'</span></div>';}).join('');
+    return '<div class="card"><div class="card-header" onclick="toggle(\''+TAB+'\','+id+')">'+tier+sectorBadge+'<div class="card-name">'+name+'</div>'+tvBadge+'<span class="status-lbl">'+(item.status||'not contacted')+'</span><span class="sdot '+dotCls+'"></span></div><div class="card-body" id="body-'+TAB+'-'+id+'"><div class="why">'+(item.why||'')+'</div>'+(contacts?'<div class="sec-lbl">Contacts</div>'+contacts:'')+'<div class="sec-lbl" style="margin-top:12px">Notes & Status</div><div class="field-row"><textarea class="notes-input" id="notes-'+TAB+'-'+id+'">'+(item.notes||'')+'</textarea><div style="display:flex;flex-direction:column;gap:6px"><select class="status-select" id="status-'+TAB+'-'+id+'">'+['not contacted','draft','linkedin','contacted','in conversation','bounced','passed'].map(s=>'<option value="'+s+'"'+(item.status===s?' selected':'')+'>'+s+'</option>').join('')+'</select><input class="date-input" type="date" id="followup-'+TAB+'-'+id+'" value="'+(item.followup_date||'')+'"><button class="save-btn" onclick="save(\''+TAB+'\','+id+')">Save</button></div></div></div></div>';
+  }).join(''):'<div class="empty">No results.</div>';
+  document.getElementById('main-content').innerHTML='<div class="controls"><input class="search-box" type="text" id="search-input" placeholder="Search..." oninput="renderList()" value="'+q+'"><button class="filter-btn'+(FILTER==='all'?' active':'')+' " onclick="setFilter(\'all\',this)">All</button><button class="filter-btn'+(FILTER==='active'?' active':'')+' " onclick="setFilter(\'active\',this)">Active</button><button class="filter-btn'+(FILTER==='contacted'?' active':'')+' " onclick="setFilter(\'contacted\',this)">Contacted</button><button class="filter-btn'+(FILTER==='in conversation'?' active':'')+' " onclick="setFilter(\'in conversation\',this)">In Convo</button><button class="filter-btn'+(FILTER==='not contacted'?' active':'')+' " onclick="setFilter(\'not contacted\',this)">Not Started</button><button class="filter-btn'+(FILTER==='bounced'?' active':'')+' " onclick="setFilter(\'bounced\',this)">Bounced</button>'+sectorRow+'</div><div class="stats">'+statHtml+'</div><div class="cards">'+cardsHtml+'</div>';
 }
-function toggle(tab,id){document.getElementById(`body-${tab}-${id}`)?.classList.toggle('open');}
+function toggle(tab,id){document.getElementById('body-'+tab+'-'+id)?.classList.toggle('open');}
 async function save(tab,id){
-  const notes=document.getElementById(`notes-${tab}-${id}`).value;
-  const status=document.getElementById(`status-${tab}-${id}`).value;
-  const followup=document.getElementById(`followup-${tab}-${id}`).value;
+  const notes=document.getElementById('notes-'+tab+'-'+id).value;
+  const status=document.getElementById('status-'+tab+'-'+id).value;
+  const followup=document.getElementById('followup-'+tab+'-'+id).value;
   const ep=tab==='ceos'?'/api/ceos':tab==='vcs'?'/api/vcs':'/api/firms';
-  await fetch(`${ep}/${id}`,{method:'PATCH',headers:authHeaders(),body:JSON.stringify({notes,status,followup_date:followup||null})});
+  await fetch(ep+'/'+id,{method:'PATCH',headers:authHeaders(),body:JSON.stringify({notes,status,followup_date:followup||null})});
   await loadAll();
 }
 document.addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&e.key==='k'){e.preventDefault();document.querySelector('.search-box')?.focus();}});
