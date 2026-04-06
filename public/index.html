@@ -23,7 +23,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .nav-item.active svg{opacity:1}
 .nav-badge{margin-left:auto;min-width:18px;height:18px;background:rgba(255,255,255,.15);color:#fff;font-size:10px;font-weight:700;border-radius:9px;display:inline-flex;align-items:center;justify-content:center;padding:0 5px}
 .nav-badge.urgent{background:#EF4444}.nav-badge.blue{background:#3B82F6}.nav-badge.green{background:#10B981}
-.sidebar-footer{padding:14px 20px;border-top:1px solid rgba(255,255,255,.08);font-size:10px;color:rgba(255,255,255,.2)}
+.sidebar-footer{padding:14px 20px;border-top:1px solid rgba(255,255,255,.08);font-size:10px;color:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:space-between}
+.version-badge{font-size:10px;font-weight:700;color:#F97316;cursor:pointer;background:rgba(249,115,22,.15);border:1px solid rgba(249,115,22,.3);padding:2px 6px;border-radius:4px;transition:all .15s;flex-shrink:0}
+.version-badge:hover{background:rgba(249,115,22,.25);color:#fff}
 .sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:199}
 .sidebar-overlay.show{display:block}
 .content-area{flex:1;overflow-y:auto;display:flex;flex-direction:column;min-width:0}
@@ -144,7 +146,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .login-btn{width:100%;padding:10px;background:#F97316;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer}
 .login-err{color:#EF4444;font-size:12px;margin-top:8px;display:none}
 .login-status{font-size:12px;color:#9CA3AF;margin-top:8px;text-align:center}
-/* Sector badges */
 .sector-badge{font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;letter-spacing:.03em;white-space:nowrap;flex-shrink:0}
 .sector-healthtech{background:#CCFBF1;color:#0D9488}
 .sector-revenue_gtm{background:#EFF6FF;color:#3B82F6}
@@ -152,24 +153,42 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .sector-fintech{background:#FEF3C7;color:#D97706}
 .sector-vertical_saas{background:#FFF7ED;color:#EA580C}
 .sector-general,.sector-network{background:#F3F4F6;color:#6B7280}
-/* Template version badges */
 .tv-badge{font-size:9px;font-weight:700;padding:2px 5px;border-radius:3px;letter-spacing:.04em;flex-shrink:0;font-family:monospace}
 .tv-v1{background:#F3F4F6;color:#9CA3AF}
 .tv-v2{background:#ECFDF5;color:#059669}
-/* Performance tables */
 .perf-table{width:100%;border-collapse:collapse;font-size:12px}
 .perf-table th{color:#9CA3AF;font-size:10px;text-transform:uppercase;letter-spacing:.05em;padding:4px 0 8px;border-bottom:1px solid #F3F4F6;font-weight:700;text-align:left}
 .perf-table td{padding:7px 0;border-bottom:1px solid #F3F4F6;color:#1F2D3D;vertical-align:middle}
 .perf-table tr:last-child td{border-bottom:none}
 .perf-table td+td{text-align:right;color:#6B7280}
 .perf-table .hl{color:#1F2D3D;font-weight:600}
-/* SLA card */
 .sla-big{font-size:36px;font-weight:700;line-height:1}
 .sla-ok{color:#10B981}.sla-miss{color:#EF4444}
-/* Two-col layout for dashboard */
 .two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
-/* Sector filter row */
 .sector-filters{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;width:100%}
+/* Changelog modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px}
+.modal{background:#fff;border-radius:12px;width:100%;max-width:520px;max-height:82vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 64px rgba(0,0,0,.22)}
+.modal-header{display:flex;align-items:center;justify-content:space-between;padding:18px 20px 16px;border-bottom:1px solid #F3F4F6;flex-shrink:0}
+.modal-title{font-size:15px;font-weight:700;color:#1F2D3D}
+.modal-subtitle{font-size:11px;color:#9CA3AF;margin-top:1px}
+.modal-close{background:none;border:none;cursor:pointer;color:#9CA3AF;font-size:22px;line-height:1;padding:0 4px;transition:color .15s}
+.modal-close:hover{color:#1F2D3D}
+.modal-body{overflow-y:auto;padding:20px}
+.cl-version{margin-bottom:22px}
+.cl-version:last-child{margin-bottom:0}
+.cl-ver-header{display:flex;align-items:baseline;gap:10px;margin-bottom:9px}
+.cl-ver-num{font-size:11px;font-weight:700;background:#1F2D3D;color:#fff;padding:2px 8px;border-radius:4px;letter-spacing:.04em}
+.cl-ver-num.current{background:#F97316}
+.cl-ver-label{font-size:11px;font-weight:600;color:#1F2D3D}
+.cl-ver-date{font-size:11px;color:#9CA3AF;margin-left:auto}
+.cl-changes{list-style:none;padding:0;display:flex;flex-direction:column;gap:4px}
+.cl-changes li{font-size:12px;color:#6B7280;padding-left:14px;position:relative;line-height:1.45}
+.cl-changes li::before{content:'\2022';position:absolute;left:2px;color:#D1D5DB;font-size:10px;top:1px}
+.cl-tag{font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;margin-left:4px;vertical-align:middle}
+.cl-tag-new{background:#ECFDF5;color:#059669}
+.cl-tag-fix{background:#FEF3C7;color:#D97706}
+.cl-tag-infra{background:#EFF6FF;color:#3B82F6}
 @media(max-width:768px){
   .sidebar{position:fixed;left:0;top:0;height:100vh;transform:translateX(-100%);z-index:200}
   .sidebar.mobile-open{transform:translateX(0)}
@@ -188,6 +207,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   .chart-bar{width:32px}
   .controls{gap:6px}
   .filter-btn{font-size:10px;padding:4px 8px}
+  .modal{max-height:90vh}
 }
 </style>
 </head>
@@ -195,6 +215,96 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
 <div id="toast" class="toast"></div>
 <div id="sidebar-overlay" class="sidebar-overlay" onclick="closeSidebar()"></div>
+
+<!-- Changelog modal -->
+<div id="changelog-modal" class="modal-overlay" style="display:none" onclick="if(event.target===this)hideChangelog()">
+  <div class="modal">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title">HopeSpot Changelog</div>
+        <div class="modal-subtitle">Built instead of applying.</div>
+      </div>
+      <button class="modal-close" onclick="hideChangelog()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="cl-version">
+        <div class="cl-ver-header"><span class="cl-ver-num current">v3.3</span><span class="cl-ver-label">Analytics Layer</span><span class="cl-ver-date">Apr 6, 2026</span></div>
+        <ul class="cl-changes">
+          <li>Sector tags on all CEO contacts (Healthtech, Revenue/GTM, Analytics, FinTech, Vertical SaaS, General)<span class="cl-tag cl-tag-new">new</span></li>
+          <li>Template version tracking (v1 vs v2) for A/B performance comparison<span class="cl-tag cl-tag-new">new</span></li>
+          <li>Dashboard: SLA Compliance card, 7-day rolling avg vs 10/day target<span class="cl-tag cl-tag-new">new</span></li>
+          <li>Dashboard: Template A/B performance table<span class="cl-tag cl-tag-new">new</span></li>
+          <li>Dashboard: CEO Outreach by Sector breakdown with reply rates<span class="cl-tag cl-tag-new">new</span></li>
+          <li>CEO tab: sector filter buttons, sector and template badges on cards<span class="cl-tag cl-tag-new">new</span></li>
+          <li>Version badge in sidebar footer with this changelog<span class="cl-tag cl-tag-new">new</span></li>
+        </ul>
+      </div>
+      <div class="cl-version">
+        <div class="cl-ver-header"><span class="cl-ver-num">v3.2</span><span class="cl-ver-label">Mobile + Queue Fix</span><span class="cl-ver-date">Apr 6, 2026</span></div>
+        <ul class="cl-changes">
+          <li>Mobile responsive layout: hamburger menu, slide-out sidebar, full-width content<span class="cl-tag cl-tag-new">new</span></li>
+          <li>Fixed org_name display bug (VCs now show firm name, CEOs show company name)<span class="cl-tag cl-tag-fix">fix</span></li>
+          <li>Refresh toast shows live due count and draft count<span class="cl-tag cl-tag-fix">fix</span></li>
+          <li>Follow Up Today pulls from /api/due (authoritative), not client-side filter<span class="cl-tag cl-tag-fix">fix</span></li>
+          <li>API key login stored in localStorage, survives server restarts<span class="cl-tag cl-tag-fix">fix</span></li>
+          <li>Run Queue button explains already-loaded vs stages new contacts<span class="cl-tag cl-tag-fix">fix</span></li>
+        </ul>
+      </div>
+      <div class="cl-version">
+        <div class="cl-ver-header"><span class="cl-ver-num">v3.1</span><span class="cl-ver-label">Dynamic Contacts</span><span class="cl-ver-date">Apr 5, 2026</span></div>
+        <ul class="cl-changes">
+          <li>Dynamic contacts import via POST /api/contacts/import (deduplicates by email)<span class="cl-tag cl-tag-new">new</span></li>
+          <li>PATCH /api/contacts/:id for individual dynamic contact updates<span class="cl-tag cl-tag-new">new</span></li>
+          <li>POST /api/sync for bulk email-matched status updates across all pillars<span class="cl-tag cl-tag-new">new</span></li>
+          <li>is_job_search flag to exclude non-search contacts from queue and /api/due<span class="cl-tag cl-tag-new">new</span></li>
+          <li>Dynamic contacts appear in Follow Up Today alongside seed contacts<span class="cl-tag cl-tag-new">new</span></li>
+        </ul>
+      </div>
+      <div class="cl-version">
+        <div class="cl-ver-header"><span class="cl-ver-num">v3.0</span><span class="cl-ver-label">Auth Hardening + Due Queue</span><span class="cl-ver-date">Apr 4, 2026</span></div>
+        <ul class="cl-changes">
+          <li>x-api-key header auth bypasses session, survives server restarts<span class="cl-tag cl-tag-infra">infra</span></li>
+          <li>GET /api/due returns authoritative follow-up queue filtered by date and status<span class="cl-tag cl-tag-new">new</span></li>
+          <li>Cadence day tracking (Day 1, Day 5, Day 10...)<span class="cl-tag cl-tag-new">new</span></li>
+          <li>Gmail thread ID storage per contact<span class="cl-tag cl-tag-new">new</span></li>
+          <li>/api/cron/run rate-limited to once per 60 seconds<span class="cl-tag cl-tag-fix">fix</span></li>
+          <li>days_since_contact computed from last_contacted field<span class="cl-tag cl-tag-new">new</span></li>
+        </ul>
+      </div>
+      <div class="cl-version">
+        <div class="cl-ver-header"><span class="cl-ver-num">v2.0</span><span class="cl-ver-label">Railway Deploy + Persistence</span><span class="cl-ver-date">Apr 2, 2026</span></div>
+        <ul class="cl-changes">
+          <li>Railway deployment with persistent /app/data volume (data survives redeploys)<span class="cl-tag cl-tag-infra">infra</span></li>
+          <li>Override system: seeds are read-only, all changes stored in overrides.json<span class="cl-tag cl-tag-infra">infra</span></li>
+          <li>Session-based password authentication<span class="cl-tag cl-tag-infra">infra</span></li>
+          <li>4-pillar cron allocation with surplus redistribution (firms/ceos/vcs balanced)<span class="cl-tag cl-tag-new">new</span></li>
+          <li>GET /api/debug for live system state inspection<span class="cl-tag cl-tag-new">new</span></li>
+          <li>Boot check: queue auto-runs on server start if not already run today<span class="cl-tag cl-tag-new">new</span></li>
+        </ul>
+      </div>
+      <div class="cl-version">
+        <div class="cl-ver-header"><span class="cl-ver-num">v1.0</span><span class="cl-ver-label">Initial Launch</span><span class="cl-ver-date">Apr 1, 2026</span></div>
+        <ul class="cl-changes">
+          <li>Three pillars: Recruiters, Direct CEO, VC Firms<span class="cl-tag cl-tag-new">new</span></li>
+          <li>Seed-based contact data (seed_firms.json, seed_ceos.json, seed_vcs.json)<span class="cl-tag cl-tag-new">new</span></li>
+          <li>Daily cron queue, 6 AM ET, 15 contacts/day with tier prioritization<span class="cl-tag cl-tag-new">new</span></li>
+          <li>Morning Queue view with Send Now and Follow Up Today sections<span class="cl-tag cl-tag-new">new</span></li>
+          <li>Dashboard with daily activity bar chart and segment stats<span class="cl-tag cl-tag-new">new</span></li>
+          <li>Six contact statuses: not contacted, draft, linkedin, contacted, in conversation, bounced, passed<span class="cl-tag cl-tag-new">new</span></li>
+          <li>Notes, follow-up dates, and full contact card editing per record<span class="cl-tag cl-tag-new">new</span></li>
+          <li>Search and status filter on all list views<span class="cl-tag cl-tag-new">new</span></li>
+        </ul>
+      </div>
+      <div class="cl-version">
+        <div class="cl-ver-header"><span class="cl-ver-num">v0.1</span><span class="cl-ver-label">Proof of Concept</span><span class="cl-ver-date">Mar 31, 2026</span></div>
+        <ul class="cl-changes">
+          <li>Static recruiter contact list, browser-only state<span class="cl-tag cl-tag-new">new</span></li>
+          <li>Manual status tracking with no persistence<span class="cl-tag cl-tag-new">new</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
 
 <div id="login-view" class="login-wrap">
   <div class="login-box">
@@ -247,7 +357,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
         <span class="nav-badge green" id="badge-vcs">0</span>
       </div>
     </div>
-    <div class="sidebar-footer">everett.steele@gmail.com</div>
+    <div class="sidebar-footer">
+      <span>everett.steele@gmail.com</span>
+      <span class="version-badge" onclick="showChangelog()">v3.3</span>
+    </div>
   </nav>
 
   <div class="content-area">
@@ -284,6 +397,9 @@ let TOKEN='',API_KEY_MODE=false,DATA=[],CEOs=[],VCs=[],STATS=null,DUE=[],FILTER=
 const TODAY=new Date().toISOString().split('T')[0];
 const TITLES={queue:['Morning Queue',"Today's outreach and follow-ups"],dashboard:['Dashboard','Outreach performance and activity'],recruiters:['Recruiters','Executive search firms'],ceos:['Direct CEO / Network','Referral asks and warm network contacts'],vcs:['VC Firms','Portfolio COO and operating partner outreach']};
 const SECTOR_LABELS={healthtech:'Healthtech',revenue_gtm:'Revenue/GTM',analytics:'Analytics',fintech:'FinTech',vertical_saas:'Vertical SaaS',general:'General SaaS',network:'Network'};
+
+function showChangelog(){document.getElementById('changelog-modal').style.display='flex';}
+function hideChangelog(){document.getElementById('changelog-modal').style.display='none';}
 
 function toast(msg,dur=3000){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),dur);}
 function setStatus(m){const e=document.getElementById('login-status');if(e)e.textContent=m;}
@@ -447,7 +563,6 @@ function renderDashboard(){
     html+='</div><div class="legend"><div class="legend-item"><div class="legend-dot" style="background:#3B82F6"></div>Recruiters</div><div class="legend-item"><div class="legend-dot" style="background:#F97316"></div>CEOs</div><div class="legend-item"><div class="legend-dot" style="background:#10B981"></div>VCs</div></div>';
   }
   html+='</div>';
-  // SLA + Template row
   const sla=STATS.slaStats||{target:10,dailyAvg7:0,onTrack:false};
   const tmplStats=STATS.templateStats||[];
   html+='<div class="two-col">';
@@ -458,7 +573,6 @@ function renderDashboard(){
   if(!tmplStats.length){html+='<div style="color:#9CA3AF;font-size:12px">No data yet.</div>';}
   else{html+='<table class="perf-table"><tr><th>Version</th><th>Sent</th><th>Replies</th><th>Rate</th></tr>'+tmplStats.map(t=>'<tr><td><span class="tv-badge tv-'+t.version+'">'+t.version+'</span></td><td>'+t.sent+'</td><td class="hl">'+t.replies+'</td><td>'+t.replyRate+'%</td></tr>').join('')+'</table>';}
   html+='</div></div>';
-  // Sector breakdown
   const secStats=STATS.sectorStats||[];
   if(secStats.length){
     html+='<div class="dash-card" style="margin-bottom:16px"><div class="dash-card-title">CEO Outreach by Sector</div>';
@@ -492,11 +606,10 @@ function renderList(){
   const all=currentData();
   const sMap=s=>all.filter(x=>x.status===s).length;
   const statHtml=[['Total',all.length],['Draft',sMap('draft')],['Contacted',sMap('contacted')],['In Convo',sMap('in conversation')],['Bounced',all.filter(x=>x.status==='bounced'||(x.contacts||[]).some(c=>c.status==='bounced')).length]].map(([l,v])=>'<div class="stat"><div class="stat-label">'+l+'</div><div class="stat-val">'+v+'</div></div>').join('');
-  // Sector filter row for CEO tab
   let sectorRow='';
   if(TAB==='ceos'){
     const sectors=[...new Set(currentData().map(x=>x.sector||'general'))].filter(Boolean).sort();
-    const secBtns=sectors.map(s=>'<button class="filter-btn sfbtn'+(SECTOR_FILTER===s?' active':'')+' sector-'+s+'" onclick="setSectorFilter(\'' +s+'\',this)">'+(SECTOR_LABELS[s]||s)+'</button>').join('');
+    const secBtns=sectors.map(s=>'<button class="filter-btn sfbtn'+(SECTOR_FILTER===s?' active':'')+' " onclick="setSectorFilter(\'' +s+'\',this)">'+(SECTOR_LABELS[s]||s)+'</button>').join('');
     sectorRow='<div class="sector-filters"><button class="filter-btn sfbtn'+(SECTOR_FILTER==='all'?' active':'')+' " onclick="setSectorFilter(\'all\',this)">All Sectors</button>'+secBtns+'</div>';
   }
   const cardsHtml=items.length?items.map(item=>{
@@ -505,7 +618,7 @@ function renderList(){
     const tier=item.tier?'<span class="tier-badge">T'+item.tier+'</span>':TAB==='ceos'?'<span class="tier-badge">CEO</span>':'<span class="tier-badge">VC</span>';
     const sectorBadge=TAB==='ceos'&&item.sector?'<span class="sector-badge sector-'+item.sector+'">'+(SECTOR_LABELS[item.sector]||item.sector)+'</span>':'';
     const tvBadge=TAB==='ceos'&&item.template_version?'<span class="tv-badge tv-'+item.template_version+'">'+item.template_version+'</span>':'';
-    const contacts=(item.contacts||[]).map(c=>{const cs='cs-'+(c.status||'not-contacted').replace(/ /g,'-');return'<div class="contact-row"><div class="contact-info"><div class="contact-name">'+c.name+'</div>'+(c.title?'<div class="contact-title">'+c.title+'</div>':'')+(c.email?'<div class="contact-email">'+c.email+'</div>':'')+(c.notes?'<div class="contact-notes">'+c.notes+'</div>':'')+'</div><span class="cs-tag '+cs+'">'+( c.status||'not contacted')+'</span></div>';}).join('');
+    const contacts=(item.contacts||[]).map(c=>{const cs='cs-'+(c.status||'not-contacted').replace(/ /g,'-');return'<div class="contact-row"><div class="contact-info"><div class="contact-name">'+c.name+'</div>'+(c.title?'<div class="contact-title">'+c.title+'</div>':'')+(c.email?'<div class="contact-email">'+c.email+'</div>':'')+(c.notes?'<div class="contact-notes">'+c.notes+'</div>':'')+'</div><span class="cs-tag '+cs+'">'+(c.status||'not contacted')+'</span></div>';}).join('');
     return '<div class="card"><div class="card-header" onclick="toggle(\''+TAB+'\','+id+')">'+tier+sectorBadge+'<div class="card-name">'+name+'</div>'+tvBadge+'<span class="status-lbl">'+(item.status||'not contacted')+'</span><span class="sdot '+dotCls+'"></span></div><div class="card-body" id="body-'+TAB+'-'+id+'"><div class="why">'+(item.why||'')+'</div>'+(contacts?'<div class="sec-lbl">Contacts</div>'+contacts:'')+'<div class="sec-lbl" style="margin-top:12px">Notes & Status</div><div class="field-row"><textarea class="notes-input" id="notes-'+TAB+'-'+id+'">'+(item.notes||'')+'</textarea><div style="display:flex;flex-direction:column;gap:6px"><select class="status-select" id="status-'+TAB+'-'+id+'">'+['not contacted','draft','linkedin','contacted','in conversation','bounced','passed'].map(s=>'<option value="'+s+'"'+(item.status===s?' selected':'')+'>'+s+'</option>').join('')+'</select><input class="date-input" type="date" id="followup-'+TAB+'-'+id+'" value="'+(item.followup_date||'')+'"><button class="save-btn" onclick="save(\''+TAB+'\','+id+')">Save</button></div></div></div></div>';
   }).join(''):'<div class="empty">No results.</div>';
   document.getElementById('main-content').innerHTML='<div class="controls"><input class="search-box" type="text" id="search-input" placeholder="Search..." oninput="renderList()" value="'+q+'"><button class="filter-btn'+(FILTER==='all'?' active':'')+' " onclick="setFilter(\'all\',this)">All</button><button class="filter-btn'+(FILTER==='active'?' active':'')+' " onclick="setFilter(\'active\',this)">Active</button><button class="filter-btn'+(FILTER==='contacted'?' active':'')+' " onclick="setFilter(\'contacted\',this)">Contacted</button><button class="filter-btn'+(FILTER==='in conversation'?' active':'')+' " onclick="setFilter(\'in conversation\',this)">In Convo</button><button class="filter-btn'+(FILTER==='not contacted'?' active':'')+' " onclick="setFilter(\'not contacted\',this)">Not Started</button><button class="filter-btn'+(FILTER==='bounced'?' active':'')+' " onclick="setFilter(\'bounced\',this)">Bounced</button>'+sectorRow+'</div><div class="stats">'+statHtml+'</div><div class="cards">'+cardsHtml+'</div>';
@@ -519,7 +632,10 @@ async function save(tab,id){
   await fetch(ep+'/'+id,{method:'PATCH',headers:authHeaders(),body:JSON.stringify({notes,status,followup_date:followup||null})});
   await loadAll();
 }
-document.addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&e.key==='k'){e.preventDefault();document.querySelector('.search-box')?.focus();}});
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){hideChangelog();}
+  if((e.metaKey||e.ctrlKey)&&e.key==='k'){e.preventDefault();document.querySelector('.search-box')?.focus();}
+});
 init();
 </script>
 </body>
