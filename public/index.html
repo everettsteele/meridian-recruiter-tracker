@@ -44,6 +44,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .topbar-btn.run-queue{background:#F97316;color:#fff;border-color:#F97316}
 .topbar-btn.run-queue:hover{background:#ea6c06;border-color:#ea6c06;color:#fff}
 .topbar-btn.run-queue:disabled{opacity:.6;cursor:not-allowed}
+.topbar-btn.mark-sent{background:#10B981;color:#fff;border-color:#10B981}
+.topbar-btn.mark-sent:hover{background:#059669;border-color:#059669;color:#fff}
+.topbar-btn.mark-sent:disabled{opacity:.6;cursor:not-allowed}
 @keyframes spin{to{transform:rotate(360deg)}}
 .toast{position:fixed;bottom:24px;right:24px;background:#1F2D3D;color:#fff;padding:10px 16px;border-radius:8px;font-size:13px;font-weight:500;box-shadow:0 4px 16px rgba(0,0,0,.2);z-index:9999;opacity:0;transform:translateY(8px);transition:all .2s;max-width:calc(100vw - 32px)}
 .toast.show{opacity:1;transform:translateY(0)}
@@ -55,6 +58,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .section-header:first-of-type{margin-top:0}
 .section-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#1F2D3D}
 .section-count{font-size:12px;color:#9CA3AF}
+.section-action{margin-left:auto}
 .queue-card{background:#fff;border:1px solid #E5E7EB;border-radius:10px;padding:13px 16px;display:flex;align-items:center;gap:12px;margin-bottom:8px;transition:box-shadow .15s}
 .queue-card:hover{box-shadow:0 2px 8px rgba(0,0,0,.06)}
 .queue-card.followup{border-left:3px solid #F59E0B}
@@ -71,6 +75,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .btn{padding:6px 14px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;border:none;white-space:nowrap;transition:all .15s}
 .btn-send{background:#F97316;color:#fff}.btn-send:hover{background:#ea6c06}
 .btn-followup{background:#F3F4F6;color:#1F2D3D}.btn-followup:hover{background:#E5E7EB}
+.btn-green{background:#10B981;color:#fff;border:none;padding:5px 12px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer}
+.btn-green:hover{background:#059669}
 .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:10px;margin-bottom:18px}
 .stat{background:#fff;border-radius:10px;padding:12px 14px;border:1px solid #E5E7EB}
 .stat-label{font-size:10px;color:#9CA3AF;text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px}
@@ -168,7 +174,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .sla-big{font-size:36px;font-weight:700;line-height:1}
 .sla-ok{color:#10B981}.sla-miss{color:#EF4444}
 .sector-filters{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;width:100%}
-/* Modals */
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px}
 .modal{background:#fff;border-radius:12px;width:100%;max-width:520px;max-height:82vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 64px rgba(0,0,0,.22)}
 .modal-header{display:flex;align-items:center;justify-content:space-between;padding:18px 20px 16px;border-bottom:1px solid #F3F4F6;flex-shrink:0}
@@ -177,7 +182,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .modal-close{background:none;border:none;cursor:pointer;color:#9CA3AF;font-size:22px;line-height:1;padding:0 4px;transition:color .15s}
 .modal-close:hover{color:#1F2D3D}
 .modal-body{overflow-y:auto;padding:20px}
-/* Log follow-up modal */
 .log-modal{max-width:400px}
 .log-modal .modal-body{padding:18px 20px 20px}
 .log-contact{font-size:13px;font-weight:600;color:#1F2D3D;margin-bottom:2px}
@@ -187,7 +191,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .log-actions{display:flex;gap:8px;justify-content:flex-end}
 .log-cancel{padding:7px 16px;border-radius:7px;border:1px solid #E5E7EB;background:#fff;font-size:13px;font-weight:500;color:#6B7280;cursor:pointer}
 .log-confirm{padding:7px 18px;border-radius:7px;border:none;background:#F97316;color:#fff;font-size:13px;font-weight:600;cursor:pointer}
-/* Changelog */
 .cl-version{margin-bottom:22px}
 .cl-version:last-child{margin-bottom:0}
 .cl-ver-header{display:flex;align-items:baseline;gap:10px;margin-bottom:9px}
@@ -229,7 +232,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 <div id="toast" class="toast"></div>
 <div id="sidebar-overlay" class="sidebar-overlay" onclick="closeSidebar()"></div>
 
-<!-- Log follow-up modal (replaces prompt()) -->
 <div id="log-modal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeLogModal()">
   <div class="modal log-modal">
     <div class="modal-header">
@@ -248,7 +250,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   </div>
 </div>
 
-<!-- Changelog modal -->
 <div id="changelog-modal" class="modal-overlay" style="display:none" onclick="if(event.target===this)hideChangelog()">
   <div class="modal">
     <div class="modal-header">
@@ -260,7 +261,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     </div>
     <div class="modal-body">
       <div class="cl-version">
-        <div class="cl-ver-header"><span class="cl-ver-num current">v3.5</span><span class="cl-ver-label">Button Fixes</span><span class="cl-ver-date">Apr 7, 2026</span></div>
+        <div class="cl-ver-header"><span class="cl-ver-num current">v3.6</span><span class="cl-ver-label">Mark Drafts Sent</span><span class="cl-ver-date">Apr 7, 2026</span></div>
+        <ul class="cl-changes">
+          <li>Green "Mark Drafts Sent" button appears in topbar when drafts are queued<span class="cl-tag cl-tag-new">new</span></li>
+          <li>Tapping it marks all current drafts as contacted, sets 7-day follow-up dates, reloads dashboard<span class="cl-tag cl-tag-new">new</span></li>
+          <li>POST /api/mark-drafts-sent endpoint; no Gmail access required<span class="cl-tag cl-tag-infra">infra</span></li>
+        </ul>
+      </div>
+      <div class="cl-version">
+        <div class="cl-ver-header"><span class="cl-ver-num">v3.5</span><span class="cl-ver-label">Button Fixes</span><span class="cl-ver-date">Apr 7, 2026</span></div>
         <ul class="cl-changes">
           <li>Replaced prompt() with inline modal for Log follow-up — works on iOS Safari<span class="cl-tag cl-tag-fix">fix</span></li>
           <li>SLA target restored to 10/day; cron queue size (15) decoupled from SLA metric<span class="cl-tag cl-tag-fix">fix</span></li>
@@ -270,48 +279,38 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       <div class="cl-version">
         <div class="cl-ver-header"><span class="cl-ver-num">v3.4</span><span class="cl-ver-label">Dashboard Layout</span><span class="cl-ver-date">Apr 6, 2026</span></div>
         <ul class="cl-changes">
-          <li>Chart moves to left column; SLA and Template A/B stack on the right<span class="cl-tag cl-tag-new">new</span></li>
-          <li>Bar chart count labels position as absolute above each bar, no more clipping<span class="cl-tag cl-tag-fix">fix</span></li>
-          <li>Sector table simplified: removed Bounced column, tighter presentation<span class="cl-tag cl-tag-fix">fix</span></li>
-          <li>Table column headers right-aligned to match numeric data columns<span class="cl-tag cl-tag-fix">fix</span></li>
+          <li>Chart left column; SLA and Template A/B stacked right<span class="cl-tag cl-tag-new">new</span></li>
+          <li>Bar chart count labels fixed; sector table simplified; headers right-aligned<span class="cl-tag cl-tag-fix">fix</span></li>
         </ul>
       </div>
       <div class="cl-version">
         <div class="cl-ver-header"><span class="cl-ver-num">v3.3</span><span class="cl-ver-label">Analytics Layer</span><span class="cl-ver-date">Apr 6, 2026</span></div>
         <ul class="cl-changes">
-          <li>Sector tags, template version tracking, SLA compliance card, Template A/B table<span class="cl-tag cl-tag-new">new</span></li>
-          <li>CEO Outreach by Sector breakdown; sector filters on CEO tab<span class="cl-tag cl-tag-new">new</span></li>
+          <li>Sector tags, template A/B, SLA compliance, CEO Outreach by Sector<span class="cl-tag cl-tag-new">new</span></li>
         </ul>
       </div>
       <div class="cl-version">
         <div class="cl-ver-header"><span class="cl-ver-num">v3.2</span><span class="cl-ver-label">Mobile + Queue Fix</span><span class="cl-ver-date">Apr 6, 2026</span></div>
         <ul class="cl-changes">
-          <li>Mobile responsive layout with hamburger sidebar<span class="cl-tag cl-tag-new">new</span></li>
-          <li>Follow Up Today pulls from /api/due; API key login persists across restarts<span class="cl-tag cl-tag-fix">fix</span></li>
+          <li>Mobile responsive layout; Follow Up Today from /api/due; API key login persists<span class="cl-tag cl-tag-fix">fix</span></li>
         </ul>
       </div>
       <div class="cl-version">
         <div class="cl-ver-header"><span class="cl-ver-num">v3.0</span><span class="cl-ver-label">Auth + Due Queue</span><span class="cl-ver-date">Apr 4, 2026</span></div>
         <ul class="cl-changes">
-          <li>x-api-key auth, /api/due endpoint, cadence day tracking<span class="cl-tag cl-tag-new">new</span></li>
+          <li>x-api-key auth, /api/due endpoint, cadence tracking<span class="cl-tag cl-tag-new">new</span></li>
         </ul>
       </div>
       <div class="cl-version">
         <div class="cl-ver-header"><span class="cl-ver-num">v2.0</span><span class="cl-ver-label">Railway Deploy</span><span class="cl-ver-date">Apr 2, 2026</span></div>
         <ul class="cl-changes">
-          <li>Railway deployment, persistent volume, override system<span class="cl-tag cl-tag-infra">infra</span></li>
+          <li>Railway, persistent volume, override system<span class="cl-tag cl-tag-infra">infra</span></li>
         </ul>
       </div>
       <div class="cl-version">
-        <div class="cl-ver-header"><span class="cl-ver-num">v1.0</span><span class="cl-ver-label">Initial Launch</span><span class="cl-ver-date">Apr 1, 2026</span></div>
+        <div class="cl-ver-header"><span class="cl-ver-num">v1.0</span><span class="cl-ver-label">Launch</span><span class="cl-ver-date">Apr 1, 2026</span></div>
         <ul class="cl-changes">
-          <li>Three pillars, daily cron queue, Morning Queue + Dashboard + pillar views<span class="cl-tag cl-tag-new">new</span></li>
-        </ul>
-      </div>
-      <div class="cl-version">
-        <div class="cl-ver-header"><span class="cl-ver-num">v0.1</span><span class="cl-ver-label">Proof of Concept</span><span class="cl-ver-date">Mar 31, 2026</span></div>
-        <ul class="cl-changes">
-          <li>Static recruiter list, browser-only state<span class="cl-tag cl-tag-new">new</span></li>
+          <li>Three pillars, daily cron, Morning Queue, Dashboard, pillar views<span class="cl-tag cl-tag-new">new</span></li>
         </ul>
       </div>
     </div>
@@ -371,7 +370,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     </div>
     <div class="sidebar-footer">
       <span>everett.steele@gmail.com</span>
-      <span class="version-badge" onclick="showChangelog()">v3.5</span>
+      <span class="version-badge" onclick="showChangelog()">v3.6</span>
     </div>
   </nav>
 
@@ -393,6 +392,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
           <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
           Run Queue
         </button>
+        <button class="topbar-btn mark-sent" id="mark-sent-btn" onclick="markDraftsSent()" style="display:none">
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+          Mark Drafts Sent
+        </button>
         <button class="topbar-btn" id="refresh-btn" onclick="refreshData()">
           <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
           Refresh
@@ -410,7 +413,6 @@ const TODAY=new Date().toISOString().split('T')[0];
 const TITLES={queue:['Morning Queue',"Today's outreach and follow-ups"],dashboard:['Dashboard','Outreach performance and activity'],recruiters:['Recruiters','Executive search firms'],ceos:['Direct CEO / Network','Referral asks and warm network contacts'],vcs:['VC Firms','Portfolio COO and operating partner outreach']};
 const SECTOR_LABELS={healthtech:'Healthtech',revenue_gtm:'Revenue/GTM',analytics:'Analytics',fintech:'FinTech',vertical_saas:'Vertical SaaS',general:'General SaaS',network:'Network'};
 
-// --- Log follow-up modal (no prompt()) ---
 let _logPending=null;
 function openLogModal(orgName,email,endpoint,id,isDynamic){
   _logPending={endpoint,id,isDynamic};
@@ -508,17 +510,33 @@ async function runQueue(){
   btn.innerHTML='<svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg> Run Queue';
 }
 
+async function markDraftsSent(){
+  const btn=document.getElementById('mark-sent-btn');
+  btn.disabled=true;btn.textContent='Marking...';
+  try{
+    const r=await fetch('/api/mark-drafts-sent',{method:'POST',headers:authFetchHeaders()}).then(x=>x.json());
+    await loadAll();
+    toast(r.marked+' draft'+(r.marked!==1?'s':'')+' marked sent \u2014 follow-ups set for 7 days');
+  }catch(e){toast('Failed. Try refreshing.');}
+  btn.disabled=false;
+  btn.innerHTML='<svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg> Mark Drafts Sent';
+}
+
 function allItems(){return[...DATA.map(x=>({...x,_pillar:'recruiter',_endpoint:'/api/firms',_label:'Recruiter'})),...CEOs.map(x=>({...x,_pillar:'ceo',_endpoint:'/api/ceos',_label:'CEO',name:x.company})),...VCs.map(x=>({...x,_pillar:'vc',_endpoint:'/api/vcs',_label:'VC',name:x.firm}))];}
 
 function updateBadges(){
   const all=allItems();
-  const q=all.filter(x=>x.status==='draft').length+DUE.length;
+  const draftCount=all.filter(x=>x.status==='draft').length;
+  const q=draftCount+DUE.length;
   document.getElementById('badge-queue').textContent=q;
   document.getElementById('badge-recruiters').textContent=DATA.filter(x=>['contacted','in conversation','draft'].includes(x.status)).length;
   document.getElementById('badge-ceos').textContent=CEOs.filter(x=>['contacted','in conversation','draft'].includes(x.status)).length;
   document.getElementById('badge-vcs').textContent=VCs.filter(x=>['contacted','in conversation','draft'].includes(x.status)).length;
   const mb=document.getElementById('mobile-badge');if(mb)mb.textContent=q;
   const mt=document.getElementById('mobile-title');if(mt){const t=TITLES[TAB];if(t)mt.textContent=t[0];}
+  // Show Mark Drafts Sent button only when drafts are queued
+  const msBtn=document.getElementById('mark-sent-btn');
+  if(msBtn)msBtn.style.display=draftCount>0?'flex':'none';
 }
 
 function switchTab(t){
@@ -539,7 +557,9 @@ function renderQueue(){
   const dateStr=new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
   const totalMin=Math.round(sendNow.length*0.4+followUp.length*1.5);
   let html='<div class="queue-date">'+dateStr+'</div><div class="queue-title">Morning Queue</div><div class="queue-sub">'+sendNow.length+' to send &nbsp;&middot;&nbsp; '+followUp.length+' follow-ups &nbsp;&middot;&nbsp; ~'+totalMin+' min</div>';
-  html+='<div class="section-header"><div class="section-title">Send Now</div><div class="section-count">'+sendNow.length+' drafts waiting</div></div>';
+  // Send Now section with Mark All Sent button
+  const markAllBtn=sendNow.length>0?'<button class="btn-green section-action" onclick="markDraftsSent()">\u2713 Mark All Sent</button>':'';
+  html+='<div class="section-header"><div class="section-title">Send Now</div><div class="section-count">'+sendNow.length+' drafts waiting</div>'+markAllBtn+'</div>';
   if(!sendNow.length)html+='<div class="empty" style="padding:20px 0">No drafts queued. Hit Run Queue to stage the next batch.</div>';
   else['recruiter','ceo','vc'].forEach(p=>{sendNow.filter(x=>x._pillar===p).forEach(item=>{const c=(item.contacts||[]).find(c=>c.status==='draft')||(item.contacts||[])[0]||{};html+='<div class="queue-card"><span class="pillar-tag pillar-'+p+'">'+item._label+'</span><div class="queue-info"><div class="queue-name">'+item.name+'</div><div class="queue-contact">'+(c.name||'')+'</div><div class="queue-email">'+(c.email||'')+'</div></div><button class="btn btn-send" onclick="markSent(\''+item._endpoint+'\','+item.id+',this)">Mark Sent</button></div>';});});
   html+='<div class="divider"></div><div class="section-header"><div class="section-title">Follow Up Today</div><div class="section-count">'+followUp.length+' due</div></div>';
