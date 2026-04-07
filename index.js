@@ -102,7 +102,10 @@ function saveCronState(state) {
   try { fs.writeFileSync(CRON_STATE_PATH, JSON.stringify(state, null, 2)); } catch(e) { console.error('[ERROR]', e.message); }
 }
 
-const DAILY_TARGET = 20;
+// DAILY_TARGET = queue size per cron run (how many drafts to stage)
+// SLA_TARGET   = daily send goal for the dashboard (separate metric)
+const DAILY_TARGET = 15;
+const SLA_TARGET   = 10;
 const PILLARS = ['firms', 'ceos', 'vcs'];
 
 function runDailyCron() {
@@ -318,6 +321,47 @@ app.post('/api/cron/run', requireAuth, (req, res) => {
   res.json({ ok: true, ...runDailyCron() });
 });
 
+// Gmail sync webhook — accepts a list of sent emails and marks them contacted in overrides.
+// Called by Claude (as manual trigger) or Emmett (automated) after a send session.
+// Body: { "emails": [{ "email": "foo@bar.com", "sent_date": "2026-04-07" }] }
+app.post('/api/gmail-sync', requireAuth, (req, res) => {
+  const emails = req.body.emails || [];
+  if (!emails.length) return res.json({ ok: true, changed: 0 });
+
+  const updates = emails.map(({ email, sent_date }) => {
+    const base = sent_date || todayET();
+    const d = new Date(base + 'T12:00:00Z');
+    d.setDate(d.getDate() + 7);
+    return {
+      email: email.toLowerCase().trim(),
+      status: 'contacted',
+      last_contacted: base,
+      followup_date: d.toISOString().split('T')[0],
+    };
+  });
+
+  let changed = 0;
+  const ov = loadOverrides();
+  PILLARS.forEach(key => {
+    readSeed(key).forEach(item => {
+      (item.contacts || []).forEach(c => {
+        const match = updates.find(u => u.email === (c.email || '').toLowerCase().trim());
+        if (!match) return;
+        if (!ov[key]) ov[key] = {};
+        const upd = { ...(ov[key][String(item.id)] || {}) };
+        upd.status = match.status;
+        upd.last_contacted = match.last_contacted;
+        upd.followup_date = match.followup_date;
+        ov[key][String(item.id)] = upd;
+        changed++;
+      });
+    });
+  });
+  saveOverrides(ov);
+  console.log(`[gmail-sync] Updated ${changed} contacts`);
+  res.json({ ok: true, changed });
+});
+
 app.get('/api/debug', (req, res) => {
   const ov = loadOverrides();
   const today = todayET();
@@ -427,7 +471,7 @@ app.get('/api/stats', requireAuth, (req, res) => {
     return { version, sent, replies, bounced, replyRate: sent > 0 ? Math.round((replies/sent)*100) : 0 };
   }).sort((a,b) => a.version.localeCompare(b.version));
 
-  // SLA stats — 7-day rolling average vs 20/day target
+  // SLA: 7-day rolling average vs SLA_TARGET (10/day goal)
   const todayStr = todayET();
   const cutoffDate = new Date(todayStr + 'T12:00:00-05:00');
   cutoffDate.setDate(cutoffDate.getDate() - 6);
@@ -435,7 +479,7 @@ app.get('/api/stats', requireAuth, (req, res) => {
   let totalRecent = 0;
   Object.entries(byDate).forEach(([d, v]) => { if (d >= cutoffStr) totalRecent += v.total; });
   const dailyAvg7 = Math.round(totalRecent / 7);
-  const slaStats = { target: 20, dailyAvg7, onTrack: dailyAvg7 >= 20 };
+  const slaStats = { target: SLA_TARGET, dailyAvg7, onTrack: dailyAvg7 >= SLA_TARGET };
 
   res.json({
     segments: [seg(firms,'Recruiters'), seg(ceos,'Direct CEO'), seg(vcs,'VC Firms')],
@@ -465,7 +509,7 @@ function makePatch(key) {
         return res.status(400).json({ error: 'Invalid status value' });
       const id = parseInt(req.params.id);
       const item = readSeed(key).find(x => x.id === id);
-      if (!item) return res.status(404).json({ error: 'Not found' });  
+      if (!item) return res.status(404).json({ error: 'Not found' });
       const ov = loadOverrides();
       if (!ov[key]) ov[key] = {};
       const upd = { ...(ov[key][String(id)] || {}) };
