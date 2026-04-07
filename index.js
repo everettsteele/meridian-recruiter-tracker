@@ -321,8 +321,39 @@ app.post('/api/cron/run', requireAuth, (req, res) => {
   res.json({ ok: true, ...runDailyCron() });
 });
 
-// Gmail sync webhook — accepts a list of sent emails and marks them contacted in overrides.
-// Called by Claude (as manual trigger) or Emmett (automated) after a send session.
+// Mark all current drafts as contacted — called from dashboard "Mark Drafts Sent" button
+// after Everett sends his Gmail drafts. No Gmail access needed.
+app.post('/api/mark-drafts-sent', requireAuth, (req, res) => {
+  const today = todayET();
+  const followupDate = (() => {
+    const d = new Date(today + 'T12:00:00Z');
+    d.setDate(d.getDate() + 7);
+    return d.toISOString().split('T')[0];
+  })();
+
+  let marked = 0;
+  const ov = loadOverrides();
+
+  PILLARS.forEach(key => {
+    if (!ov[key]) ov[key] = {};
+    getDB(key).forEach(item => {
+      if (item.status !== 'draft') return;
+      ov[key][String(item.id)] = {
+        ...(ov[key][String(item.id)] || {}),
+        status: 'contacted',
+        last_contacted: today,
+        followup_date: followupDate,
+      };
+      marked++;
+    });
+  });
+
+  saveOverrides(ov);
+  console.log(`[mark-drafts-sent] Marked ${marked} drafts as contacted`);
+  res.json({ ok: true, marked });
+});
+
+// Gmail sync webhook — called by Claude after scanning sent mail
 // Body: { "emails": [{ "email": "foo@bar.com", "sent_date": "2026-04-07" }] }
 app.post('/api/gmail-sync', requireAuth, (req, res) => {
   const emails = req.body.emails || [];
@@ -375,7 +406,7 @@ app.get('/api/debug', (req, res) => {
     if (item.status === 'contacted' && item.followup_date && item.followup_date <= today && item.is_job_search !== false) dueCount++;
   });
   res.json({
-    version: '3.5',
+    version: '3.6',
     seedCounts: { firms: readSeed('firms').length, ceos: readSeed('ceos').length, vcs: readSeed('vcs').length },
     dynamicCount: loadDynamic().length,
     overrideCounts: { firms: Object.keys(ov.firms||{}).length, ceos: Object.keys(ov.ceos||{}).length, vcs: Object.keys(ov.vcs||{}).length },
@@ -400,7 +431,7 @@ app.get('/api/debug', (req, res) => {
   });
 });
 
-// Sectors excluded from the outreach performance table (warm network, not cold outreach)
+// Sectors excluded from the outreach performance table
 const SECTOR_EXCLUDE_FROM_TABLE = new Set(['network']);
 
 app.get('/api/stats', requireAuth, (req, res) => {
@@ -436,7 +467,6 @@ app.get('/api/stats', requireAuth, (req, res) => {
     }
   });
 
-  // Sector stats (CEO only, excludes warm network sectors)
   const SECTOR_MAP = {
     healthtech:'Healthtech', revenue_gtm:'Revenue/GTM', analytics:'Analytics',
     fintech:'FinTech', vertical_saas:'Vertical SaaS', general:'General SaaS', network:'Network'
@@ -457,7 +487,6 @@ app.get('/api/stats', requireAuth, (req, res) => {
         replyRate: sent > 0 ? Math.round((replies/sent)*100) : 0 };
     }).sort((a,b) => b.sent - a.sent);
 
-  // Template version stats (CEO only)
   const tmplBuckets = {};
   ceos.forEach(item => {
     const v = item.template_version || 'v1';
@@ -471,7 +500,6 @@ app.get('/api/stats', requireAuth, (req, res) => {
     return { version, sent, replies, bounced, replyRate: sent > 0 ? Math.round((replies/sent)*100) : 0 };
   }).sort((a,b) => a.version.localeCompare(b.version));
 
-  // SLA: 7-day rolling average vs SLA_TARGET (10/day goal)
   const todayStr = todayET();
   const cutoffDate = new Date(todayStr + 'T12:00:00-05:00');
   cutoffDate.setDate(cutoffDate.getDate() - 6);
