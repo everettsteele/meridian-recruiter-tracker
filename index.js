@@ -13,6 +13,7 @@ const DATA_DIR  = path.join(__dirname, 'data');
 const OVERRIDES_PATH = path.join(DATA_DIR, 'overrides.json');
 const CRON_STATE_PATH = path.join(DATA_DIR, 'cron_state.json');
 const DYNAMIC_CONTACTS_PATH = path.join(DATA_DIR, 'dynamic_contacts.json');
+const APPLICATIONS_PATH = path.join(DATA_DIR, 'applications.json');
 
 const SEED_PATHS = {
   firms: path.join(SEEDS_DIR, 'seed_firms.json'),
@@ -51,7 +52,19 @@ function saveDynamic(contacts) {
   try { fs.writeFileSync(DYNAMIC_CONTACTS_PATH, JSON.stringify(contacts, null, 2)); } catch(e) { console.error('[ERROR]', e.message); }
 }
 
+function loadApplications() {
+  try {
+    if (fs.existsSync(APPLICATIONS_PATH)) return JSON.parse(fs.readFileSync(APPLICATIONS_PATH, 'utf8'));
+  } catch(e) { console.error('[ERROR]', e.message); }
+  return [];
+}
+
+function saveApplications(apps) {
+  try { fs.writeFileSync(APPLICATIONS_PATH, JSON.stringify(apps, null, 2)); } catch(e) { console.error('[ERROR]', e.message); }
+}
+
 const SENT_STATUSES = new Set(['contacted', 'in conversation', 'bounced', 'passed', 'linkedin']);
+const VALID_APP_STATUSES = ['applied','confirmation_received','interviewing','offer','rejected','no_response','withdrawn'];
 
 function orgName(track, item) {
   if (track === 'ceos') return item.company || item.name || '';
@@ -102,8 +115,6 @@ function saveCronState(state) {
   try { fs.writeFileSync(CRON_STATE_PATH, JSON.stringify(state, null, 2)); } catch(e) { console.error('[ERROR]', e.message); }
 }
 
-// DAILY_TARGET = queue size per cron run (how many drafts to stage)
-// SLA_TARGET   = daily send goal for the dashboard (separate metric)
 const DAILY_TARGET = 15;
 const SLA_TARGET   = 10;
 const PILLARS = ['firms', 'ceos', 'vcs'];
@@ -313,6 +324,81 @@ app.patch('/api/contacts/:id', requireAuth, (req, res) => {
   res.json(contacts[idx]);
 });
 
+// --- APPLICATION TRACKING ---
+
+app.get('/api/applications', requireAuth, (req, res) => {
+  res.json(loadApplications().sort((a,b) => (b.applied_date||'').localeCompare(a.applied_date||'')));
+});
+
+app.post('/api/applications', requireAuth, (req, res) => {
+  const { company, role, source_url, notion_url, notes, applied_date } = req.body;
+  if (!company || !role) return res.status(400).json({ error: 'company and role required' });
+  const today = applied_date || todayET();
+  const fd = new Date(today + 'T12:00:00Z');
+  fd.setDate(fd.getDate() + 7);
+  const rec = {
+    id: randomUUID(), company, role,
+    applied_date: today, status: 'applied',
+    source_url: source_url || '', notion_url: notion_url || '',
+    follow_up_date: fd.toISOString().split('T')[0],
+    last_activity: today, notes: notes || '',
+    activity: [{ date: today, type: 'applied', note: 'Application submitted' }]
+  };
+  const apps = loadApplications();
+  apps.push(rec);
+  saveApplications(apps);
+  res.json(rec);
+});
+
+app.patch('/api/applications/:id', requireAuth, (req, res) => {
+  const apps = loadApplications();
+  const idx = apps.findIndex(a => a.id === req.params.id);
+  if (idx < 0) return res.status(404).json({ error: 'Not found' });
+  if (req.body.status && !VALID_APP_STATUSES.includes(req.body.status))
+    return res.status(400).json({ error: 'Invalid status' });
+  const today = todayET();
+  if (req.body.status && req.body.status !== apps[idx].status) {
+    const activity = apps[idx].activity || [];
+    activity.push({ date: today, type: req.body.status, note: req.body.activity_note || '' });
+    apps[idx].activity = activity;
+  }
+  apps[idx] = { ...apps[idx], ...req.body, id: apps[idx].id, last_activity: today };
+  delete apps[idx].activity_note;
+  saveApplications(apps);
+  res.json(apps[idx]);
+});
+
+app.delete('/api/applications/:id', requireAuth, (req, res) => {
+  const apps = loadApplications();
+  const idx = apps.findIndex(a => a.id === req.params.id);
+  if (idx < 0) return res.status(404).json({ error: 'Not found' });
+  apps.splice(idx, 1);
+  saveApplications(apps);
+  res.json({ ok: true });
+});
+
+app.post('/api/applications/email-sync', requireAuth, (req, res) => {
+  const matches = req.body.matches || [];
+  if (!matches.length) return res.json({ ok: true, changed: 0 });
+  const apps = loadApplications();
+  let changed = 0;
+  matches.forEach(({ id, status, note, date }) => {
+    const idx = apps.findIndex(a => a.id === id);
+    if (idx < 0) return;
+    const actDate = date || todayET();
+    if (status && VALID_APP_STATUSES.includes(status) && status !== apps[idx].status) apps[idx].status = status;
+    const activity = apps[idx].activity || [];
+    activity.push({ date: actDate, type: status || 'note', note: note || '' });
+    apps[idx].activity = activity;
+    apps[idx].last_activity = actDate;
+    changed++;
+  });
+  saveApplications(apps);
+  res.json({ ok: true, changed });
+});
+
+// --- END APPLICATION TRACKING ---
+
 let lastCronRunCall = 0;
 app.post('/api/cron/run', requireAuth, (req, res) => {
   if (Date.now() - lastCronRunCall < 60000)
@@ -321,8 +407,6 @@ app.post('/api/cron/run', requireAuth, (req, res) => {
   res.json({ ok: true, ...runDailyCron() });
 });
 
-// Mark all current drafts as contacted — called from dashboard "Mark Drafts Sent" button
-// after Everett sends his Gmail drafts. No Gmail access needed.
 app.post('/api/mark-drafts-sent', requireAuth, (req, res) => {
   const today = todayET();
   const followupDate = (() => {
@@ -353,8 +437,6 @@ app.post('/api/mark-drafts-sent', requireAuth, (req, res) => {
   res.json({ ok: true, marked });
 });
 
-// Gmail sync webhook — called by Claude after scanning sent mail
-// Body: { "emails": [{ "email": "foo@bar.com", "sent_date": "2026-04-07" }] }
 app.post('/api/gmail-sync', requireAuth, (req, res) => {
   const emails = req.body.emails || [];
   if (!emails.length) return res.json({ ok: true, changed: 0 });
@@ -405,10 +487,13 @@ app.get('/api/debug', (req, res) => {
   loadDynamic().forEach(item => {
     if (item.status === 'contacted' && item.followup_date && item.followup_date <= today && item.is_job_search !== false) dueCount++;
   });
+  const appsByStatus = loadApplications().reduce((acc,a)=>{ acc[a.status]=(acc[a.status]||0)+1; return acc; }, {});
   res.json({
-    version: '3.6',
+    version: '4.0',
     seedCounts: { firms: readSeed('firms').length, ceos: readSeed('ceos').length, vcs: readSeed('vcs').length },
     dynamicCount: loadDynamic().length,
+    applicationCount: loadApplications().length,
+    applicationsByStatus: appsByStatus,
     overrideCounts: { firms: Object.keys(ov.firms||{}).length, ceos: Object.keys(ov.ceos||{}).length, vcs: Object.keys(ov.vcs||{}).length },
     contactedCounts: {
       firms: getDB('firms').filter(x => SENT_STATUSES.has(x.status)).length,
@@ -431,7 +516,6 @@ app.get('/api/debug', (req, res) => {
   });
 });
 
-// Sectors excluded from the outreach performance table
 const SECTOR_EXCLUDE_FROM_TABLE = new Set(['network']);
 
 app.get('/api/stats', requireAuth, (req, res) => {
