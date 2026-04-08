@@ -206,19 +206,19 @@ function renderApplications() {
       +'<td style="padding:10px 0;font-weight:600;font-size:13px">'+app.company+(app.status==='queued'&&!app.drive_url?' <span style="font-size:9px;background:#FEF2F2;color:#EF4444;padding:1px 5px;border-radius:3px;vertical-align:middle">NO PKG</span>':'')+'</td>'
       +'<td style="padding:10px 8px;font-size:12px;color:#6B7280">'+app.role+'</td>'
       +'<td style="padding:10px 8px;font-size:12px">'+(app.applied_date||'')+'</td>'
-      +'<td style="padding:10px 8px"><select onchange="_patchApp(\''+app.id+'\',{status:this.value})" style="font-size:11px;padding:3px 5px;color:'+st.color+';border:1px solid '+st.color+'40;border-radius:4px;background:'+st.color+'12;cursor:pointer">'+opts+'</select></td>'
+      +'<td style="padding:10px 8px"><select onchange="_patchApp(this.dataset.id,{status:this.value})" data-id="'+app.id+'" style="font-size:11px;padding:3px 5px;color:'+st.color+';border:1px solid '+st.color+'40;border-radius:4px;background:'+st.color+'12;cursor:pointer">'+opts+'</select></td>'
       +'<td style="padding:10px 8px;font-size:12px;color:'+(ov?'#EF4444':'#6B7280')+'">'+(app.follow_up_date||'')+(ov?' \u26a0':'')+'</td>'
       +'<td style="padding:10px 8px">'+actHtml+'</td>'
       +'<td style="padding:10px 0;white-space:nowrap">'
         +(app.drive_url?'<a href="'+app.drive_url+'" target="_blank" style="display:inline-block;padding:3px 8px;background:#16a34a;border-radius:5px;font-size:11px;color:#fff;text-decoration:none;margin-right:3px">Drive</a>':'')
         +(app.notion_url?'<a href="'+app.notion_url+'" target="_blank" style="display:inline-block;padding:3px 8px;background:#f3f4f6;border-radius:5px;font-size:11px;color:#374151;text-decoration:none;margin-right:3px">Pkg</a>':'')
         +(app.source_url?'<a href="'+app.source_url+'" target="_blank" style="display:inline-block;padding:3px 8px;background:#f97316;border-radius:5px;font-size:11px;color:#fff;text-decoration:none;margin-right:3px">Apply</a>':'')
-        +'<button onclick="_deleteApp(\''+app.id+'\')" style="padding:3px 8px;border-radius:5px;border:1px solid #FCA5A5;background:#FEF2F2;color:#EF4444;font-size:11px;cursor:pointer">&times;</button>'
+        +'<button data-id="'+app.id+'" onclick="_deleteApp(this.dataset.id)" style="padding:3px 8px;border-radius:5px;border:1px solid #FCA5A5;background:#FEF2F2;color:#EF4444;font-size:11px;cursor:pointer">&times;</button>'
       +'</td></tr>';
   }).join('');
   var needsPkgCount = _appsData.filter(function(a){return a.status==='queued'&&!a.drive_url;}).length;
   var batchBtn = needsPkgCount > 0
-    ? '<button onclick="_batchBuildPackages(this)" style="padding:9px 18px;background:#16a34a;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;margin-left:10px">Build ' + needsPkgCount + ' Package' + (needsPkgCount>1?'s':'') + '</button>'
+    ? '<button onclick="_batchBuildPackages(this)" style="padding:9px 18px;background:#16a34a;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;margin-left:10px">Build Queued Packages</button>'
     : '';
   document.getElementById('main-content').innerHTML =
     '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px"><div><div style="font-size:22px;font-weight:700">Applications</div><div style="font-size:13px;color:#9ca3af;margin-top:2px">'+_appsData.length+' tracked &nbsp;&middot;&nbsp; '+needsPkgCount+' need a package</div></div><div style="display:flex;align-items:center">'+batchBtn+'<button onclick="_showAddAppModal()" style="padding:9px 18px;background:#f97316;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;margin-left:10px">+ Log Application</button></div></div>'
@@ -229,19 +229,20 @@ function renderApplications() {
 }
 
 async function _batchBuildPackages(btn) {
-  if (!confirm('Build Drive packages for all queued applications? This will generate cover letters using AI and create Drive folders. Takes 1-2 minutes.')) return;
+  var needsCount = _appsData.filter(function(a){return a.status==='queued'&&!a.drive_url;}).length;
+  if (!confirm('Build Drive packages for ' + needsCount + ' queued application' + (needsCount!==1?'s':'') + '? AI will generate cover letters and create Drive folders. Takes 1-2 minutes.')) return;
   if (btn) { btn.textContent = 'Building...'; btn.disabled = true; }
   try {
     var r = await (await fetch('/api/applications/batch-packages', { method: 'POST', headers: _authFH() })).json();
     if (r.ok) {
-      if (typeof toast === 'function') toast(r.message || 'Packages building in background. Refresh in 2 minutes.', 6000);
+      if (typeof toast === 'function') toast(r.message || 'Packages building in background. Check back in 2 minutes.', 6000);
     } else {
       if (typeof toast === 'function') toast('Error: ' + (r.error || 'Unknown error'));
     }
   } catch(e) {
     if (typeof toast === 'function') toast('Request failed');
   }
-  if (btn) { btn.textContent = 'Build Packages'; btn.disabled = false; }
+  if (btn) { btn.textContent = 'Build Queued Packages'; btn.disabled = false; }
   setTimeout(function() { loadApps(); }, 30000);
 }
 
@@ -299,13 +300,14 @@ async function renderJobBoard() {
     return '<span style="padding:3px 10px;background:'+c+'15;color:'+c+';border-radius:10px;font-size:11px;font-weight:600;border:1px solid '+c+'30">'+n+' '+s+'</span>';
   }).join('');
 
+  // KEY FIX: use data attributes on all interactive elements to avoid inline quote escaping
   function row(l) {
     var sc = srcColors[l.source]||'#6b7280';
     var fc = l.fit_score>=7?'#16a34a':l.fit_score>=5?'#d97706':'#6b7280';
     var btns = '';
     if (l.status==='new') {
-      btns = '<button onclick="snagLead(\''+l.id+'\',this)" style="padding:3px 9px;background:#f97316;border:none;border-radius:5px;font-size:11px;color:#fff;cursor:pointer;margin-right:4px;font-weight:600">Snag</button>'
-           + '<button onclick="updateLeadStatus(\''+l.id+'\',\'reviewed\')" style="padding:3px 7px;background:#f3f4f6;border:none;border-radius:5px;font-size:11px;color:#374151;cursor:pointer">Skip</button>';
+      btns = '<button data-lead-id="'+l.id+'" onclick="snagLead(this.dataset.leadId,this)" style="padding:3px 9px;background:#f97316;border:none;border-radius:5px;font-size:11px;color:#fff;cursor:pointer;margin-right:4px;font-weight:600">Snag</button>'
+           + '<button data-lead-id="'+l.id+'" onclick="updateLeadStatus(this.dataset.leadId,\'reviewed\')" style="padding:3px 7px;background:#f3f4f6;border:none;border-radius:5px;font-size:11px;color:#374151;cursor:pointer">Skip</button>';
     }
     return '<tr style="border-bottom:1px solid #f3f4f6">'
       +'<td style="padding:10px 14px"><div style="font-weight:600;font-size:13px">'+l.title+'</div><div style="font-size:11px;color:#6b7280;margin-top:2px">'+(l.organization||'')+(l.location?' \u00b7 '+l.location:'')+'</div><span style="display:inline-block;margin-top:4px;padding:1px 6px;background:'+sc+'15;color:'+sc+';border-radius:4px;font-size:10px;font-weight:700">'+(l.source_label||l.source)+'</span></td>'
@@ -316,7 +318,6 @@ async function renderJobBoard() {
       +'</tr>';
   }
 
-  // FIX: overflow-x:auto instead of overflow:hidden for mobile scroll
   var tableWrap = 'style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;overflow-x:auto;-webkit-overflow-scrolling:touch;margin-bottom:20px"';
 
   var newHtml = newLeads.length>0
@@ -384,11 +385,11 @@ function _buildEventHtml(e, today) {
   h += '<div style="display:flex;gap:6px;align-items:center">';
   if (ovrS>0) h += '<span style="font-size:10px;font-weight:700;color:#EF4444;background:#FEF2F2;padding:2px 7px;border-radius:4px">'+ovrS+' overdue</span>';
   else if (pendS>0) h += '<span style="font-size:10px;color:#d97706;background:#FEF3C7;padding:2px 7px;border-radius:4px">'+pendS+' pending</span>';
-  h += '<button onclick="deleteEvent(\''+e.id+'\')" style="background:none;border:none;color:#D1D5DB;cursor:pointer;font-size:16px;padding:0 2px">&times;</button>';
+  h += '<button data-event-id="'+e.id+'" onclick="deleteEvent(this.dataset.eventId)" style="background:none;border:none;color:#D1D5DB;cursor:pointer;font-size:16px;padding:0 2px">&times;</button>';
   h += '</div></div>';
 
   h += '<div style="margin-bottom:10px"><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#9CA3AF;margin-bottom:5px">Notes</div>';
-  h += '<textarea id="notes-'+e.id+'" onblur="saveEventNotes(\''+e.id+'\', this.value)" style="width:100%;padding:8px 10px;border:1px solid #E5E7EB;border-radius:6px;font-size:12px;min-height:56px;resize:vertical;font-family:inherit;outline:none;color:#374151" placeholder="What happened? Key topics, connections, next opportunities...">'+((e.notes||'').replace(/</g,'&lt;').replace(/>/g,'&gt;'))+'</textarea></div>';
+  h += '<textarea data-event-id="'+e.id+'" onblur="saveEventNotes(this.dataset.eventId, this.value)" style="width:100%;padding:8px 10px;border:1px solid #E5E7EB;border-radius:6px;font-size:12px;min-height:56px;resize:vertical;font-family:inherit;outline:none;color:#374151" placeholder="What happened? Key topics, connections, next opportunities...">'+((e.notes||'').replace(/</g,'&lt;').replace(/>/g,'&gt;'))+'</textarea></div>';
 
   if ((e.contacts||[]).length > 0) {
     h += '<div style="margin-bottom:10px"><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#9CA3AF;margin-bottom:5px">Contacts</div>';
@@ -403,7 +404,7 @@ function _buildEventHtml(e, today) {
     (e.next_steps||[]).forEach(function(ns, idx) {
       var isOvr = !ns.done&&ns.due_date&&ns.due_date<=today;
       h += '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #F9FAFB;font-size:12px">';
-      h += '<input type="checkbox" '+(ns.done?'checked':'')+' onchange="toggleNextStep(\''+e.id+'\','+idx+',this.checked)" style="cursor:pointer">';
+      h += '<input type="checkbox" data-event-id="'+e.id+'" data-step-idx="'+idx+'" '+(ns.done?'checked':'')+' onchange="toggleNextStep(this.dataset.eventId,+this.dataset.stepIdx,this.checked)" style="cursor:pointer">';
       h += '<span style="flex:1;color:'+(ns.done?'#9CA3AF':'#374151')+';text-decoration:'+(ns.done?'line-through':'none')+'">'+ns.text+'</span>';
       if (ns.due_date) h += '<span style="font-size:10px;color:'+(isOvr?'#EF4444':'#9CA3AF')+';font-weight:'+(isOvr?'700':'400')+'">'+ns.due_date+'</span>';
       h += '</div>';
@@ -412,9 +413,9 @@ function _buildEventHtml(e, today) {
   }
 
   h += '<div style="display:flex;gap:6px;margin-top:10px">';
-  h += '<button onclick="addNextStep(\''+e.id+'\')" style="padding:3px 10px;background:#F3F4F6;border:none;border-radius:5px;font-size:11px;color:#374151;cursor:pointer">+ Step</button>';
-  h += '<button onclick="addContactToEvent(\''+e.id+'\')" style="padding:3px 10px;background:#F3F4F6;border:none;border-radius:5px;font-size:11px;color:#374151;cursor:pointer">+ Contact</button>';
-  h += '<button onclick="hideEvent(\''+e.id+'\')" style="padding:3px 10px;background:#F3F4F6;border:none;border-radius:5px;font-size:11px;color:#9CA3AF;cursor:pointer;margin-left:auto">hide</button>';
+  h += '<button data-event-id="'+e.id+'" onclick="addNextStep(this.dataset.eventId)" style="padding:3px 10px;background:#F3F4F6;border:none;border-radius:5px;font-size:11px;color:#374151;cursor:pointer">+ Step</button>';
+  h += '<button data-event-id="'+e.id+'" onclick="addContactToEvent(this.dataset.eventId)" style="padding:3px 10px;background:#F3F4F6;border:none;border-radius:5px;font-size:11px;color:#374151;cursor:pointer">+ Contact</button>';
+  h += '<button data-event-id="'+e.id+'" onclick="hideEvent(this.dataset.eventId)" style="padding:3px 10px;background:#F3F4F6;border:none;border-radius:5px;font-size:11px;color:#9CA3AF;cursor:pointer;margin-left:auto">hide</button>';
   h += '</div></div>';
   return h;
 }
@@ -424,7 +425,7 @@ function _buildHiddenEventHtml(e) {
   h += '<div style="display:flex;align-items:center;justify-content:space-between">';
   h += '<div><div style="font-size:13px;font-weight:600;color:#9CA3AF;text-decoration:line-through">'+e.title+'</div>';
   h += '<div style="font-size:11px;color:#9CA3AF;margin-top:2px">'+e.start_date+(e.location?' \u00b7 '+e.location:'')+'</div></div>';
-  h += '<button onclick="unhideEvent(\''+e.id+'\')" style="padding:3px 9px;background:#ECFDF5;border:1px solid #A7F3D0;border-radius:5px;font-size:11px;color:#059669;cursor:pointer">unhide</button>';
+  h += '<button data-event-id="'+e.id+'" onclick="unhideEvent(this.dataset.eventId)" style="padding:3px 9px;background:#ECFDF5;border:1px solid #A7F3D0;border-radius:5px;font-size:11px;color:#059669;cursor:pointer">unhide</button>';
   h += '</div></div>';
   return h;
 }
