@@ -1,6 +1,5 @@
-// HopeSpot — Applications + Metrics extension
+// HopeSpot — Applications, Metrics, and Job Board extension
 // Loaded after main script. Accesses globals: TOKEN, API_KEY_MODE, toast
-// TAB and auth state are managed through the patched switchTab below.
 
 const APP_STATUSES = {
   applied:               { label: 'Applied',       color: '#6b7280' },
@@ -50,15 +49,16 @@ function renderApplications() {
     return `<tr style="border-bottom:1px solid #f3f4f6">
       <td style="padding:10px 14px;font-weight:600;font-size:13px">${app.company}</td>
       <td style="padding:10px 14px;font-size:12px;color:#6b7280">${app.role}</td>
-      <td style="padding:10px 14px;font-size:12px;white-space:nowrap">${app.applied_date||'—'}</td>
+      <td style="padding:10px 14px;font-size:12px;white-space:nowrap">${app.applied_date||'\u2014'}</td>
       <td style="padding:10px 14px">
         <select onchange="updateAppStatus('${app.id}',this.value)" style="font-size:12px;padding:3px 6px;color:${st.color};border:1px solid ${st.color}50;border-radius:5px;background:${st.color}10;cursor:pointer">
           ${Object.entries(APP_STATUSES).map(([k,v])=>`<option value="${k}" ${app.status===k?'selected':''}>${v.label}</option>`).join('')}
         </select>
       </td>
-      <td style="padding:10px 14px;font-size:12px;color:${ov?'#dc2626':'#6b7280'};white-space:nowrap">${app.follow_up_date||'—'}${ov?' \u26a0':''}</td>
+      <td style="padding:10px 14px;font-size:12px;color:${ov?'#dc2626':'#6b7280'};white-space:nowrap">${app.follow_up_date||'\u2014'}${ov?' \u26a0':''}</td>
       <td style="padding:10px 14px">${actHtml}</td>
       <td style="padding:10px 14px;white-space:nowrap">
+        ${app.drive_url?`<a href="${app.drive_url}" target="_blank" style="display:inline-block;padding:3px 9px;background:#16a34a;border-radius:5px;font-size:11px;color:#fff;text-decoration:none;margin-right:4px">Drive</a>`:''}
         ${app.notion_url?`<a href="${app.notion_url}" target="_blank" style="display:inline-block;padding:3px 9px;background:#f3f4f6;border-radius:5px;font-size:11px;color:#374151;text-decoration:none;margin-right:4px">Package</a>`:''}
         ${app.source_url?`<a href="${app.source_url}" target="_blank" style="display:inline-block;padding:3px 9px;background:#f97316;border-radius:5px;font-size:11px;color:#fff;text-decoration:none;margin-right:4px">Apply</a>`:''}
         <button onclick="deleteApp('${app.id}')" style="padding:3px 7px;background:#fee2e2;border:none;border-radius:5px;font-size:11px;color:#dc2626;cursor:pointer">\u2715</button>
@@ -133,7 +133,6 @@ async function renderMetrics() {
   let apps = [], stats = null;
   try { apps = await (await fetch('/api/applications', { headers:_authFH() })).json(); } catch(e) {}
   try { stats = await (await fetch('/api/stats', { headers:_authFH() })).json(); } catch(e) {}
-
   const total = apps.length;
   const confirmed = apps.filter(a=>['confirmation_received','interviewing','offer'].includes(a.status)).length;
   const interviewing = apps.filter(a=>['interviewing','offer'].includes(a.status)).length;
@@ -141,7 +140,6 @@ async function renderMetrics() {
   const rejected = apps.filter(a=>a.status==='rejected').length;
   const pending = apps.filter(a=>a.status==='applied').length;
   const pct = (n,d) => d>0 ? Math.round((n/d)*100) : 0;
-
   const byWeek = {};
   apps.forEach(a => {
     if (!a.applied_date) return;
@@ -152,68 +150,106 @@ async function renderMetrics() {
   });
   const weeks = Object.entries(byWeek).sort(([a],[b])=>a.localeCompare(b));
   const maxW = weeks.length ? Math.max(...weeks.map(([,v])=>v)) : 1;
-
   const mc = (label,val,color,sub) =>
     `<div style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:16px;text-align:center">
       <div style="font-size:30px;font-weight:700;color:${color}">${val}</div>
       <div style="font-size:10px;font-weight:700;color:#6b7280;margin-top:3px;text-transform:uppercase;letter-spacing:.05em">${label}</div>
       ${sub?`<div style="font-size:11px;color:${color};margin-top:2px">${sub}</div>`:''}
     </div>`;
-
-  const fr = (label,n,tot) => {
-    const p = pct(n,tot);
-    return `<div style="margin-bottom:10px">
-      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
-        <span style="color:#374151;font-weight:500">${label}</span><span style="color:#9ca3af">${n} (${p}%)</span>
-      </div>
-      <div style="height:8px;background:#e5e7eb;border-radius:4px">
-        <div style="height:100%;background:#f97316;border-radius:4px;width:${p}%"></div>
-      </div></div>`;
-  };
-
-  const weekBars = weeks.map(([wk,n])=>{
-    const h = Math.round((n/maxW)*80);
-    return `<div style="display:flex;flex-direction:column;align-items:center;gap:4px;flex:1;min-width:30px">
-      <span style="font-size:11px;font-weight:600;color:#374151">${n}</span>
-      <div style="width:100%;background:#f97316;height:${h}px;border-radius:3px 3px 0 0;min-height:4px"></div>
-      <span style="font-size:10px;color:#9ca3af;white-space:nowrap">${wk.slice(5)}</span>
-    </div>`;
-  }).join('');
-
-  const outreach = stats ? stats.segments.map(s=>
-    `<div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:14px">
-      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#9ca3af;margin-bottom:8px">${s.label}</div>
-      <div style="font-size:24px;font-weight:700">${s.contacted}</div>
-      <div style="font-size:11px;color:#9ca3af">contacted of ${s.total}</div>
-      ${s.conv>0?`<div style="font-size:11px;color:#10b981;margin-top:4px">${s.conv} in conversation</div>`:''}
-    </div>`).join('') : '';
-
+  const fr = (label,n,tot) => { const p = pct(n,tot); return `<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span style="color:#374151;font-weight:500">${label}</span><span style="color:#9ca3af">${n} (${p}%)</span></div><div style="height:8px;background:#e5e7eb;border-radius:4px"><div style="height:100%;background:#f97316;border-radius:4px;width:${p}%"></div></div></div>`; };
+  const weekBars = weeks.map(([wk,n])=>{ const h = Math.round((n/maxW)*80); return `<div style="display:flex;flex-direction:column;align-items:center;gap:4px;flex:1;min-width:30px"><span style="font-size:11px;font-weight:600;color:#374151">${n}</span><div style="width:100%;background:#f97316;height:${h}px;border-radius:3px 3px 0 0;min-height:4px"></div><span style="font-size:10px;color:#9ca3af;white-space:nowrap">${wk.slice(5)}</span></div>`; }).join('');
+  const outreach = stats ? stats.segments.map(s=>`<div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:14px"><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#9ca3af;margin-bottom:8px">${s.label}</div><div style="font-size:24px;font-weight:700">${s.contacted}</div><div style="font-size:11px;color:#9ca3af">contacted of ${s.total}</div>${s.conv>0?`<div style="font-size:11px;color:#10b981;margin-top:4px">${s.conv} in conversation</div>`:''}</div>`).join('') : '';
   document.getElementById('main-content').innerHTML = `
     <div style="font-size:22px;font-weight:700;margin-bottom:4px">Metrics</div>
     <div style="font-size:13px;color:#9ca3af;margin-bottom:20px">Pipeline and response tracking</div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin-bottom:24px">
-      ${mc('Applied',total,'#f97316')}
-      ${mc('Confirmed',confirmed,'#2563eb',pct(confirmed,total)+'%')}
-      ${mc('Interviewing',interviewing,'#d97706',pct(interviewing,total)+'%')}
-      ${mc('Offers',offers,'#16a34a',pct(offers,total)+'%')}
-      ${mc('Rejected',rejected,'#dc2626')}
-      ${mc('Pending',pending,'#9ca3af')}
+      ${mc('Applied',total,'#f97316')} ${mc('Confirmed',confirmed,'#2563eb',pct(confirmed,total)+'%')} ${mc('Interviewing',interviewing,'#d97706',pct(interviewing,total)+'%')} ${mc('Offers',offers,'#16a34a',pct(offers,total)+'%')} ${mc('Rejected',rejected,'#dc2626')} ${mc('Pending',pending,'#9ca3af')}
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px">
-      <div style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:18px">
-        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#9ca3af;margin-bottom:14px">Pipeline Funnel</div>
-        ${fr('Submitted',total,total)}
-        ${fr('Confirmation',confirmed,total)}
-        ${fr('Interview',interviewing,total)}
-        ${fr('Offer',offers,total)}
-      </div>
-      <div style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:18px">
-        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#9ca3af;margin-bottom:14px">Weekly Volume</div>
-        <div style="display:flex;align-items:flex-end;gap:6px;height:96px">${weekBars||'<div style="color:#9ca3af;font-size:12px;padding-top:12px">No data yet.</div>'}</div>
-      </div>
+      <div style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:18px"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#9ca3af;margin-bottom:14px">Pipeline Funnel</div>${fr('Submitted',total,total)}${fr('Confirmation',confirmed,total)}${fr('Interview',interviewing,total)}${fr('Offer',offers,total)}</div>
+      <div style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:18px"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#9ca3af;margin-bottom:14px">Weekly Volume</div><div style="display:flex;align-items:flex-end;gap:6px;height:96px">${weekBars||'<div style="color:#9ca3af;font-size:12px;padding-top:12px">No data yet.</div>'}</div></div>
     </div>
-    ${outreach?`<div style="font-size:14px;font-weight:600;margin-bottom:12px;color:#374151">Outreach Summary</div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">${outreach}</div>`:''}`;
+    ${outreach?`<div style="font-size:14px;font-weight:600;margin-bottom:12px;color:#374151">Outreach Summary</div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">${outreach}</div>`:''}`;  
 }
+
+// --- JOB BOARD ---
+
+async function renderJobBoard() {
+  let leads = [];
+  try { leads = await (await fetch('/api/job-board', { headers: _authFH() })).json(); } catch(e) {}
+  const newLeads = leads.filter(l => l.status === 'new');
+  const reviewedLeads = leads.filter(l => l.status === 'reviewed');
+  const renderRow = (lead) => `<tr style="border-bottom:1px solid #f3f4f6">
+    <td style="padding:10px 14px">
+      <div style="font-weight:600;font-size:13px">${lead.title}</div>
+      <div style="font-size:11px;color:#6b7280;margin-top:2px">${lead.organization}${lead.location?' \u00b7 '+lead.location:''}</div>
+    </td>
+    <td style="padding:10px 14px;text-align:center">
+      <span style="font-size:13px;font-weight:700;color:${lead.fit_score>=7?'#16a34a':lead.fit_score>=5?'#d97706':'#6b7280'}">${lead.fit_score}/10</span>
+    </td>
+    <td style="padding:10px 14px;font-size:11px;color:#6b7280">${lead.fit_reason}</td>
+    <td style="padding:10px 14px;font-size:11px;color:#9ca3af;white-space:nowrap">${lead.date_found}</td>
+    <td style="padding:10px 14px;white-space:nowrap">
+      <a href="${lead.url}" target="_blank" style="display:inline-block;padding:3px 9px;background:#f97316;border-radius:5px;font-size:11px;color:#fff;text-decoration:none;margin-right:4px">View</a>
+      <button onclick="updateLeadStatus('${lead.id}','reviewed')" style="padding:3px 7px;background:#f3f4f6;border:none;border-radius:5px;font-size:11px;color:#374151;cursor:pointer;margin-right:4px">Reviewed</button>
+      <button onclick="updateLeadStatus('${lead.id}','skipped')" style="padding:3px 7px;background:#fee2e2;border:none;border-radius:5px;font-size:11px;color:#dc2626;cursor:pointer">\u2715</button>
+    </td>
+  </tr>`;
+
+  document.getElementById('main-content').innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div>
+        <div style="font-size:22px;font-weight:700">Job Board</div>
+        <div style="font-size:13px;color:#9ca3af;margin-top:2px">JewishJobs.com \u00b7 Senior operator roles \u00b7 Crawled daily at 6 AM ET</div>
+      </div>
+      <button onclick="triggerCrawl(this)" style="padding:9px 18px;background:#1f2d3d;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Crawl Now</button>
+    </div>
+    ${newLeads.length > 0 ? `
+      <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#374151;margin-bottom:8px">New (${newLeads.length})</div>
+      <div style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;margin-bottom:20px">
+        <table style="width:100%;border-collapse:collapse">
+          <thead><tr style="background:#f9fafb;border-bottom:1px solid #e5e7eb">
+            <th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;color:#6b7280">Role</th>
+            <th style="padding:10px 14px;text-align:center;font-size:11px;font-weight:700;text-transform:uppercase;color:#6b7280">Fit</th>
+            <th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;color:#6b7280">Why</th>
+            <th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;color:#6b7280">Found</th>
+            <th style="padding:10px 14px"></th>
+          </tr></thead>
+          <tbody>${newLeads.map(renderRow).join('')}</tbody>
+        </table>
+      </div>` : `<div style="color:#9ca3af;font-size:13px;margin-bottom:20px;padding:40px;text-align:center;background:#fff;border:1px solid #e5e7eb;border-radius:10px">No new leads. Hit Crawl Now to check JewishJobs.</div>`}
+    ${reviewedLeads.length > 0 ? `
+      <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#9ca3af;margin-bottom:8px">Previously Reviewed (${reviewedLeads.length})</div>
+      <div style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;opacity:.65">
+        <table style="width:100%;border-collapse:collapse"><tbody>${reviewedLeads.slice(0,5).map(renderRow).join('')}</tbody></table>
+      </div>` : ''}`;
+  updateJobBoardBadge(newLeads.length);
+}
+
+async function updateLeadStatus(id, status) {
+  await fetch('/api/job-board/'+id, { method:'PATCH', headers:_authH(), body:JSON.stringify({ status }) });
+  await renderJobBoard();
+}
+
+async function triggerCrawl(btn) {
+  if (btn) { btn.textContent = 'Crawling...'; btn.disabled = true; }
+  try {
+    const r = await (await fetch('/api/job-board/crawl', { method:'POST', headers:_authFH() })).json();
+    if (typeof toast === 'function') toast(r.newLeads + ' new lead' + (r.newLeads!==1?'s':'') + ' found');
+    await renderJobBoard();
+  } catch(e) { if (typeof toast === 'function') toast('Crawl failed'); }
+  if (btn) { btn.textContent = 'Crawl Now'; btn.disabled = false; }
+}
+
+async function updateJobBoardBadge(count) {
+  if (count === undefined) {
+    try { const l = await (await fetch('/api/job-board?status=new', { headers: _authFH() })).json(); count = l.length; } catch(e) { count = 0; }
+  }
+  const badge = document.getElementById('badge-jobboard');
+  if (badge) badge.textContent = count;
+}
+
+// --- END JOB BOARD ---
 
 // Inject nav items and modal after DOM is ready
 (function init() {
@@ -232,6 +268,11 @@ async function renderMetrics() {
       <div class="nav-item" id="nav-metrics" onclick="_switchToTab('metrics');closeSidebar()">
         <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
         Metrics
+      </div>
+      <div class="nav-item" id="nav-jobboard" onclick="_switchToTab('jobboard');closeSidebar()">
+        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        Job Board
+        <span class="nav-badge urgent" id="badge-jobboard">0</span>
       </div>`;
     Array.from(section.children).forEach(c => nav.appendChild(c));
 
@@ -257,6 +298,9 @@ async function renderMetrics() {
         </div>
       </div>`;
     document.body.appendChild(modal);
+
+    // Load badge counts after inject
+    updateJobBoardBadge();
   }
 
   if (document.readyState === 'loading') {
@@ -266,21 +310,23 @@ async function renderMetrics() {
   }
 })();
 
-// Tab switching for apps/metrics — called from nav onclick
+// Tab switching for apps/metrics/jobboard
 function _switchToTab(tab) {
-  // deactivate all nav items
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
   const el = document.getElementById('nav-'+tab);
   if (el) el.classList.add('active');
-  // update topbar
-  const titles = { applications: ['Applications','Job applications and tracking'], metrics: ['Metrics','Pipeline funnel and response rates'] };
+  const titles = {
+    applications: ['Applications','Job applications and tracking'],
+    metrics:      ['Metrics','Pipeline funnel and response rates'],
+    jobboard:     ['Job Board','JewishJobs.com \u00b7 Senior operator roles']
+  };
   const t = titles[tab];
   if (t) {
     const tb = document.getElementById('topbar-title'); if (tb) tb.textContent = t[0];
     const ts = document.getElementById('topbar-sub');   if (ts) ts.textContent = t[1];
     const mt = document.getElementById('mobile-title'); if (mt) mt.textContent = t[0];
   }
-  // deactivate existing tabs via their nav items (use switchTab for core tabs if available)
   if (tab === 'applications') loadApps();
   if (tab === 'metrics') renderMetrics();
+  if (tab === 'jobboard') renderJobBoard();
 }

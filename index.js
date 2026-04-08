@@ -14,6 +14,7 @@ const OVERRIDES_PATH = path.join(DATA_DIR, 'overrides.json');
 const CRON_STATE_PATH = path.join(DATA_DIR, 'cron_state.json');
 const DYNAMIC_CONTACTS_PATH = path.join(DATA_DIR, 'dynamic_contacts.json');
 const APPLICATIONS_PATH = path.join(DATA_DIR, 'applications.json');
+const JOB_BOARD_PATH = path.join(DATA_DIR, 'job_board_leads.json');
 
 const SEED_PATHS = {
   firms: path.join(SEEDS_DIR, 'seed_firms.json'),
@@ -61,6 +62,17 @@ function loadApplications() {
 
 function saveApplications(apps) {
   try { fs.writeFileSync(APPLICATIONS_PATH, JSON.stringify(apps, null, 2)); } catch(e) { console.error('[ERROR]', e.message); }
+}
+
+function loadJobBoardLeads() {
+  try {
+    if (fs.existsSync(JOB_BOARD_PATH)) return JSON.parse(fs.readFileSync(JOB_BOARD_PATH, 'utf8'));
+  } catch(e) { console.error('[ERROR]', e.message); }
+  return [];
+}
+
+function saveJobBoardLeads(leads) {
+  try { fs.writeFileSync(JOB_BOARD_PATH, JSON.stringify(leads, null, 2)); } catch(e) { console.error('[ERROR]', e.message); }
 }
 
 const SENT_STATUSES = new Set(['contacted', 'in conversation', 'bounced', 'passed', 'linkedin']);
@@ -183,6 +195,111 @@ function bootCheck() {
   runDailyCron();
 }
 
+async function crawlJewishJobs() {
+  const searchUrls = [
+    'https://www.jewishjobs.com/search/operations/-/-/true',
+    'https://www.jewishjobs.com/search/director/-/-/true',
+    'https://www.jewishjobs.com/search/executive-director/-/-/true',
+    'https://www.jewishjobs.com/search/chief-operating-officer/-/-/true',
+  ];
+
+  const existing = loadJobBoardLeads();
+  const existingUrls = new Set(existing.map(l => l.url));
+  const newLeads = [];
+
+  for (const searchUrl of searchUrls) {
+    try {
+      const resp = await fetch(searchUrl, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; hopespot-bot/1.0)', 'Accept': 'text/html' },
+        signal: AbortSignal.timeout(10000)
+      });
+      if (!resp.ok) continue;
+      const html = await resp.text();
+
+      // Extract job URLs from search results
+      const urls = [];
+      const jobLinkRegex = /href="(https?:\/\/(?:www\.)?jewishjobs\.com\/job\/[^"#?]+)"/gi;
+      let m;
+      while ((m = jobLinkRegex.exec(html)) !== null) {
+        const u = m[1];
+        if (!urls.includes(u) && !existingUrls.has(u)) urls.push(u);
+      }
+
+      for (const jobUrl of urls.slice(0, 8)) {
+        try {
+          const jr = await fetch(jobUrl, {
+            headers: { 'User-Agent': 'Mozilla/5.0 (compatible; hopespot-bot/1.0)', 'Accept': 'text/html' },
+            signal: AbortSignal.timeout(10000)
+          });
+          if (!jr.ok) continue;
+          const jhtml = await jr.text();
+
+          // Extract title
+          const titleM = jhtml.match(/<h1[^>]*>([^<]+)<\/h1>/) || jhtml.match(/<title>([^|<-]+)/);
+          const title = titleM ? titleM[1].replace(/&amp;/g,'&').replace(/&#039;/g,"'").trim() : 'Unknown Role';
+
+          // Extract org
+          const orgM = jhtml.match(/(?:class="[^"]*(?:employer|organization|company)[^"]*"[^>]*>|(?:Employer|Organization):\s*)[^<]*<[^>]*>([^<]{3,80})/) ||
+                        jhtml.match(/<h2[^>]*class="[^"]*subtitle[^"]*"[^>]*>([^<]+)<\/h2>/);
+          const organization = orgM ? orgM[1].replace(/<[^>]+>/g,'').trim() : '';
+
+          // Extract location
+          const locM = jhtml.match(/(?:class="[^"]*location[^"]*"[^>]*>|Location:\s*)[^<]*<[^>]*>([^<]{3,60})/) ||
+                        jhtml.match(/([A-Z][a-z]+(?:,\s*[A-Z]{2})?(?:,\s*(?:United States|Remote))?)/i);
+          const location = locM ? locM[1].trim() : '';
+
+          // Score fit
+          const tl = title.toLowerCase();
+          let score = 0;
+          if (/chief operating|\bcoo\b/.test(tl)) score += 4;
+          else if (/vp oper|vice president oper|managing director|director of oper|director of strategic/.test(tl)) score += 3;
+          else if (/\bdirector\b/.test(tl)) score += 2;
+          else if (/\bvp\b|vice president/.test(tl)) score += 2;
+          if (/executive director/.test(tl)) score += 2;
+          if (/rabbi|cantor|teacher|social work|therapist|counsel|development officer|philanthrop|chaplain|educator/.test(tl)) score -= 4;
+
+          if (score < 3) continue;
+
+          const fitReasons = [];
+          if (/chief operating|\bcoo\b/.test(tl)) fitReasons.push('COO title');
+          if (/director/.test(tl)) fitReasons.push('Director level');
+          if (/vp|vice president/.test(tl)) fitReasons.push('VP level');
+          if (/executive director/.test(tl)) fitReasons.push('Executive Director');
+          if (/oper/.test(tl)) fitReasons.push('Operations focus');
+
+          newLeads.push({
+            id: 'jj-' + Buffer.from(jobUrl).toString('base64').replace(/[^a-zA-Z0-9]/g,'').slice(0,14),
+            source: 'jewishjobs',
+            title: title.slice(0, 200),
+            organization: organization.slice(0, 200),
+            location: location.slice(0, 100),
+            url: jobUrl,
+            fit_score: Math.min(score, 10),
+            fit_reason: fitReasons.join(', ') || 'Senior role',
+            date_found: todayET(),
+            status: 'new',
+            snoozed: false
+          });
+          existingUrls.add(jobUrl);
+
+          await new Promise(r => setTimeout(r, 600));
+        } catch(e) { continue; }
+      }
+      await new Promise(r => setTimeout(r, 1200));
+    } catch(e) { console.error('[jewishjobs]', e.message); continue; }
+  }
+
+  if (newLeads.length > 0) {
+    const all = loadJobBoardLeads();
+    all.push(...newLeads);
+    saveJobBoardLeads(all);
+    console.log(`[jewishjobs] ${newLeads.length} new leads found`);
+  } else {
+    console.log('[jewishjobs] No new leads');
+  }
+  return newLeads;
+}
+
 setInterval(() => {
   try {
     const etStr = new Date().toLocaleString('en-US', { timeZone: 'America/New_York' });
@@ -191,8 +308,9 @@ setInterval(() => {
     if (h === 6 && m < 5) {
       const state = loadCronState();
       if (state.lastRunDate !== todayET()) {
-        console.log('[CRON] 6 AM ET window hit — running daily queue...');
+        console.log('[CRON] 6 AM ET — running daily queue + job board crawl...');
         runDailyCron();
+        crawlJewishJobs().catch(e => console.error('[jewishjobs cron]', e.message));
       }
     }
   } catch(e) { console.error('[CRON interval error]', e.message); }
@@ -233,7 +351,6 @@ app.get('/api/vcs',   requireAuth, (req, res) => res.json(getDB('vcs')));
 app.get('/api/due', requireAuth, (req, res) => {
   const today = todayET();
   const due = [];
-
   PILLARS.forEach(track => {
     getDB(track).forEach(item => {
       const status = item.status || 'not contacted';
@@ -245,22 +362,15 @@ app.get('/api/due', requireAuth, (req, res) => {
       const contacts = (item.contacts || []).filter(c => c.email && c.email.trim());
       const primaryContact = contacts[0] || {};
       due.push({
-        track,
-        org_id: item.id,
-        org_name: orgName(track, item),
-        contact_name: primaryContact.name || '',
-        contact_email: primaryContact.email || '',
-        followup_date: followup,
-        last_contacted: item.last_contacted || null,
+        track, org_id: item.id, org_name: orgName(track, item),
+        contact_name: primaryContact.name || '', contact_email: primaryContact.email || '',
+        followup_date: followup, last_contacted: item.last_contacted || null,
         days_since_contact: item.last_contacted ? daysBetween(item.last_contacted) : null,
-        gmail_thread_id: item.gmail_thread_id || null,
-        cadence_day: item.cadence_day || 1,
-        notes: item.notes || '',
-        status,
+        gmail_thread_id: item.gmail_thread_id || null, cadence_day: item.cadence_day || 1,
+        notes: item.notes || '', status,
       });
     });
   });
-
   loadDynamic().forEach(item => {
     const status = item.status || 'contacted';
     const followup = item.followup_date;
@@ -269,22 +379,14 @@ app.get('/api/due', requireAuth, (req, res) => {
     if (!followup || followup > today) return;
     if (!isJobSearch) return;
     due.push({
-      track: item.track || 'ceos',
-      org_id: item.id,
-      org_name: item.org_name || '',
-      contact_name: item.contact_name || '',
-      contact_email: item.contact_email || '',
-      followup_date: followup,
-      last_contacted: item.last_contacted || null,
+      track: item.track || 'ceos', org_id: item.id, org_name: item.org_name || '',
+      contact_name: item.contact_name || '', contact_email: item.contact_email || '',
+      followup_date: followup, last_contacted: item.last_contacted || null,
       days_since_contact: item.last_contacted ? daysBetween(item.last_contacted) : null,
-      gmail_thread_id: item.gmail_thread_id || null,
-      cadence_day: item.cadence_day || 1,
-      notes: item.notes || '',
-      status,
-      dynamic: true,
+      gmail_thread_id: item.gmail_thread_id || null, cadence_day: item.cadence_day || 1,
+      notes: item.notes || '', status, dynamic: true,
     });
   });
-
   due.sort((a, b) => (a.followup_date || '').localeCompare(b.followup_date || ''));
   res.json(due);
 });
@@ -303,13 +405,8 @@ app.post('/api/contacts/import', requireAuth, (req, res) => {
   entries.forEach(entry => {
     if (!entry.contact_email) return;
     const existing = contacts.findIndex(c => c.contact_email && c.contact_email.toLowerCase() === entry.contact_email.toLowerCase());
-    if (existing >= 0) {
-      contacts[existing] = { ...contacts[existing], ...entry, id: contacts[existing].id };
-      updated++;
-    } else {
-      contacts.push({ id: randomUUID(), ...entry });
-      inserted++;
-    }
+    if (existing >= 0) { contacts[existing] = { ...contacts[existing], ...entry, id: contacts[existing].id }; updated++; }
+    else { contacts.push({ id: randomUUID(), ...entry }); inserted++; }
   });
   saveDynamic(contacts);
   res.json({ ok: true, inserted, updated, total: contacts.length });
@@ -397,7 +494,69 @@ app.post('/api/applications/email-sync', requireAuth, (req, res) => {
   res.json({ ok: true, changed });
 });
 
-// --- END APPLICATION TRACKING ---
+// POST /api/create-drive-package
+app.post('/api/create-drive-package', requireAuth, async (req, res) => {
+  const { app_id, variant, cover_letter_text, company, role } = req.body;
+  if (!app_id || !variant || !cover_letter_text)
+    return res.status(400).json({ error: 'app_id, variant, and cover_letter_text required' });
+  const webhookUrl = process.env.DRIVE_WEBHOOK_URL;
+  if (!webhookUrl)
+    return res.status(503).json({ error: 'DRIVE_WEBHOOK_URL not configured. Deploy the Apps Script and add the URL to Railway env vars.' });
+  const apps = loadApplications();
+  const idx = apps.findIndex(a => a.id === app_id);
+  if (idx < 0) return res.status(404).json({ error: 'Application not found' });
+  const appRecord = apps[idx];
+  const folderName = (company || appRecord.company) + ' - ' + (role || appRecord.role);
+  try {
+    const response = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ folderName, variant, coverLetterText: cover_letter_text, company: company || appRecord.company, role: role || appRecord.role }),
+      signal: AbortSignal.timeout(30000)
+    });
+    const result = await response.json();
+    if (!result.ok) return res.status(500).json({ error: result.error || 'Drive webhook failed' });
+    const today = todayET();
+    apps[idx].drive_url = result.folderUrl;
+    apps[idx].drive_folder_id = result.folderId;
+    apps[idx].last_activity = today;
+    const activity = apps[idx].activity || [];
+    activity.push({ date: today, type: 'package_created', note: 'Drive package created: ' + result.folderUrl });
+    apps[idx].activity = activity;
+    saveApplications(apps);
+    res.json({ ok: true, folderUrl: result.folderUrl, folderId: result.folderId });
+  } catch(err) {
+    console.error('[create-drive-package]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- JOB BOARD ---
+
+app.get('/api/job-board', requireAuth, (req, res) => {
+  const leads = loadJobBoardLeads();
+  const { status } = req.query;
+  const filtered = status ? leads.filter(l => l.status === status) : leads;
+  res.json(filtered.sort((a,b) => (b.fit_score - a.fit_score) || b.date_found.localeCompare(a.date_found)));
+});
+
+app.patch('/api/job-board/:id', requireAuth, (req, res) => {
+  const leads = loadJobBoardLeads();
+  const idx = leads.findIndex(l => l.id === req.params.id);
+  if (idx < 0) return res.status(404).json({ error: 'Not found' });
+  leads[idx] = { ...leads[idx], ...req.body, id: leads[idx].id };
+  saveJobBoardLeads(leads);
+  res.json(leads[idx]);
+});
+
+app.post('/api/job-board/crawl', requireAuth, async (req, res) => {
+  try {
+    const newLeads = await crawlJewishJobs();
+    res.json({ ok: true, newLeads: newLeads.length });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// --- END JOB BOARD ---
 
 let lastCronRunCall = 0;
 app.post('/api/cron/run', requireAuth, (req, res) => {
@@ -409,50 +568,29 @@ app.post('/api/cron/run', requireAuth, (req, res) => {
 
 app.post('/api/mark-drafts-sent', requireAuth, (req, res) => {
   const today = todayET();
-  const followupDate = (() => {
-    const d = new Date(today + 'T12:00:00Z');
-    d.setDate(d.getDate() + 7);
-    return d.toISOString().split('T')[0];
-  })();
-
+  const followupDate = (() => { const d = new Date(today + 'T12:00:00Z'); d.setDate(d.getDate() + 7); return d.toISOString().split('T')[0]; })();
   let marked = 0;
   const ov = loadOverrides();
-
   PILLARS.forEach(key => {
     if (!ov[key]) ov[key] = {};
     getDB(key).forEach(item => {
       if (item.status !== 'draft') return;
-      ov[key][String(item.id)] = {
-        ...(ov[key][String(item.id)] || {}),
-        status: 'contacted',
-        last_contacted: today,
-        followup_date: followupDate,
-      };
+      ov[key][String(item.id)] = { ...(ov[key][String(item.id)] || {}), status: 'contacted', last_contacted: today, followup_date: followupDate };
       marked++;
     });
   });
-
   saveOverrides(ov);
-  console.log(`[mark-drafts-sent] Marked ${marked} drafts as contacted`);
   res.json({ ok: true, marked });
 });
 
 app.post('/api/gmail-sync', requireAuth, (req, res) => {
   const emails = req.body.emails || [];
   if (!emails.length) return res.json({ ok: true, changed: 0 });
-
   const updates = emails.map(({ email, sent_date }) => {
     const base = sent_date || todayET();
-    const d = new Date(base + 'T12:00:00Z');
-    d.setDate(d.getDate() + 7);
-    return {
-      email: email.toLowerCase().trim(),
-      status: 'contacted',
-      last_contacted: base,
-      followup_date: d.toISOString().split('T')[0],
-    };
+    const d = new Date(base + 'T12:00:00Z'); d.setDate(d.getDate() + 7);
+    return { email: email.toLowerCase().trim(), status: 'contacted', last_contacted: base, followup_date: d.toISOString().split('T')[0] };
   });
-
   let changed = 0;
   const ov = loadOverrides();
   PILLARS.forEach(key => {
@@ -462,16 +600,12 @@ app.post('/api/gmail-sync', requireAuth, (req, res) => {
         if (!match) return;
         if (!ov[key]) ov[key] = {};
         const upd = { ...(ov[key][String(item.id)] || {}) };
-        upd.status = match.status;
-        upd.last_contacted = match.last_contacted;
-        upd.followup_date = match.followup_date;
-        ov[key][String(item.id)] = upd;
-        changed++;
+        upd.status = match.status; upd.last_contacted = match.last_contacted; upd.followup_date = match.followup_date;
+        ov[key][String(item.id)] = upd; changed++;
       });
     });
   });
   saveOverrides(ov);
-  console.log(`[gmail-sync] Updated ${changed} contacts`);
   res.json({ ok: true, changed });
 });
 
@@ -479,40 +613,24 @@ app.get('/api/debug', (req, res) => {
   const ov = loadOverrides();
   const today = todayET();
   let dueCount = 0;
-  PILLARS.forEach(track => {
-    getDB(track).forEach(item => {
-      if (item.status === 'contacted' && item.followup_date && item.followup_date <= today && item.is_job_search !== false) dueCount++;
-    });
-  });
-  loadDynamic().forEach(item => {
-    if (item.status === 'contacted' && item.followup_date && item.followup_date <= today && item.is_job_search !== false) dueCount++;
-  });
+  PILLARS.forEach(track => { getDB(track).forEach(item => { if (item.status === 'contacted' && item.followup_date && item.followup_date <= today && item.is_job_search !== false) dueCount++; }); });
+  loadDynamic().forEach(item => { if (item.status === 'contacted' && item.followup_date && item.followup_date <= today && item.is_job_search !== false) dueCount++; });
   const appsByStatus = loadApplications().reduce((acc,a)=>{ acc[a.status]=(acc[a.status]||0)+1; return acc; }, {});
+  const jbLeads = loadJobBoardLeads();
   res.json({
-    version: '4.0',
+    version: '5.0',
     seedCounts: { firms: readSeed('firms').length, ceos: readSeed('ceos').length, vcs: readSeed('vcs').length },
     dynamicCount: loadDynamic().length,
     applicationCount: loadApplications().length,
     applicationsByStatus: appsByStatus,
+    applicationsWithDrive: loadApplications().filter(a => a.drive_url).length,
+    jobBoardLeads: jbLeads.length,
+    jobBoardNew: jbLeads.filter(l => l.status === 'new').length,
+    driveConfigured: !!process.env.DRIVE_WEBHOOK_URL,
     overrideCounts: { firms: Object.keys(ov.firms||{}).length, ceos: Object.keys(ov.ceos||{}).length, vcs: Object.keys(ov.vcs||{}).length },
-    contactedCounts: {
-      firms: getDB('firms').filter(x => SENT_STATUSES.has(x.status)).length,
-      ceos:  getDB('ceos').filter(x => SENT_STATUSES.has(x.status)).length,
-      vcs:   getDB('vcs').filter(x => SENT_STATUSES.has(x.status)).length,
-    },
-    draftCounts: {
-      firms: getDB('firms').filter(x => x.status === 'draft').length,
-      ceos:  getDB('ceos').filter(x => x.status === 'draft').length,
-      vcs:   getDB('vcs').filter(x => x.status === 'draft').length,
-    },
-    notContactedCounts: {
-      firms: getDB('firms').filter(x => x.status === 'not contacted').length,
-      ceos:  getDB('ceos').filter(x => x.status === 'not contacted').length,
-      vcs:   getDB('vcs').filter(x => x.status === 'not contacted').length,
-    },
-    dueCount,
-    cronState: loadCronState(),
-    todayET: today,
+    contactedCounts: { firms: getDB('firms').filter(x => SENT_STATUSES.has(x.status)).length, ceos: getDB('ceos').filter(x => SENT_STATUSES.has(x.status)).length, vcs: getDB('vcs').filter(x => SENT_STATUSES.has(x.status)).length },
+    draftCounts: { firms: getDB('firms').filter(x => x.status === 'draft').length, ceos: getDB('ceos').filter(x => x.status === 'draft').length, vcs: getDB('vcs').filter(x => x.status === 'draft').length },
+    dueCount, cronState: loadCronState(), todayET: today,
   });
 });
 
@@ -522,22 +640,14 @@ app.get('/api/stats', requireAuth, (req, res) => {
   const firms = getDB('firms');
   const ceos  = getDB('ceos');
   const vcs   = getDB('vcs');
-
   function seg(arr, label) {
     const contacted = arr.filter(x => ['contacted','in conversation'].includes(x.status)).length;
     const conv      = arr.filter(x => x.status === 'in conversation').length;
     const drafts    = arr.filter(x => x.status === 'draft').length;
     const bounced   = arr.filter(x => x.status === 'bounced' || (x.contacts||[]).some(c => c.status === 'bounced')).length;
-    return { label, total: arr.length, contacted, drafts, conv, bounced,
-      responseRate: contacted > 0 ? Math.round((conv/contacted)*100) : 0 };
+    return { label, total: arr.length, contacted, drafts, conv, bounced, responseRate: contacted > 0 ? Math.round((conv/contacted)*100) : 0 };
   }
-
-  const allItems = [
-    ...firms.map(x => ({...x, _key:'firms'})),
-    ...ceos.map(x  => ({...x, _key:'ceos'})),
-    ...vcs.map(x   => ({...x, _key:'vcs'})),
-  ];
-
+  const allItems = [...firms.map(x=>({...x,_key:'firms'})),...ceos.map(x=>({...x,_key:'ceos'})),...vcs.map(x=>({...x,_key:'vcs'}))];
   const byDate = {};
   allItems.forEach(item => {
     if (!item.last_contacted) return;
@@ -550,62 +660,35 @@ app.get('/api/stats', requireAuth, (req, res) => {
       byDate[d].total++;
     }
   });
-
-  const SECTOR_MAP = {
-    healthtech:'Healthtech', revenue_gtm:'Revenue/GTM', analytics:'Analytics',
-    fintech:'FinTech', vertical_saas:'Vertical SaaS', general:'General SaaS', network:'Network'
-  };
+  const SECTOR_MAP = { healthtech:'Healthtech', revenue_gtm:'Revenue/GTM', analytics:'Analytics', fintech:'FinTech', vertical_saas:'Vertical SaaS', general:'General SaaS', network:'Network' };
   const sectorBuckets = {};
-  ceos.forEach(item => {
-    const s = item.sector || 'general';
-    if (!sectorBuckets[s]) sectorBuckets[s] = [];
-    sectorBuckets[s].push(item);
-  });
-  const sectorStats = Object.entries(sectorBuckets)
-    .filter(([sector]) => !SECTOR_EXCLUDE_FROM_TABLE.has(sector))
-    .map(([sector, items]) => {
-      const sent    = items.filter(x => ['contacted','in conversation','bounced'].includes(x.status)).length;
-      const replies = items.filter(x => x.status === 'in conversation').length;
-      const bounced = items.filter(x => x.status === 'bounced' || (x.contacts||[]).some(c=>c.status==='bounced')).length;
-      return { sector, label: SECTOR_MAP[sector]||sector, sent, replies, bounced,
-        replyRate: sent > 0 ? Math.round((replies/sent)*100) : 0 };
-    }).sort((a,b) => b.sent - a.sent);
-
+  ceos.forEach(item => { const s = item.sector || 'general'; if (!sectorBuckets[s]) sectorBuckets[s] = []; sectorBuckets[s].push(item); });
+  const sectorStats = Object.entries(sectorBuckets).filter(([sector]) => !SECTOR_EXCLUDE_FROM_TABLE.has(sector)).map(([sector, items]) => {
+    const sent = items.filter(x => ['contacted','in conversation','bounced'].includes(x.status)).length;
+    const replies = items.filter(x => x.status === 'in conversation').length;
+    const bounced = items.filter(x => x.status === 'bounced' || (x.contacts||[]).some(c=>c.status==='bounced')).length;
+    return { sector, label: SECTOR_MAP[sector]||sector, sent, replies, bounced, replyRate: sent > 0 ? Math.round((replies/sent)*100) : 0 };
+  }).sort((a,b) => b.sent - a.sent);
   const tmplBuckets = {};
-  ceos.forEach(item => {
-    const v = item.template_version || 'v1';
-    if (!tmplBuckets[v]) tmplBuckets[v] = [];
-    tmplBuckets[v].push(item);
-  });
+  ceos.forEach(item => { const v = item.template_version || 'v1'; if (!tmplBuckets[v]) tmplBuckets[v] = []; tmplBuckets[v].push(item); });
   const templateStats = Object.entries(tmplBuckets).map(([version, items]) => {
-    const sent    = items.filter(x => ['contacted','in conversation','bounced'].includes(x.status)).length;
+    const sent = items.filter(x => ['contacted','in conversation','bounced'].includes(x.status)).length;
     const replies = items.filter(x => x.status === 'in conversation').length;
     const bounced = items.filter(x => x.status === 'bounced' || (x.contacts||[]).some(c=>c.status==='bounced')).length;
     return { version, sent, replies, bounced, replyRate: sent > 0 ? Math.round((replies/sent)*100) : 0 };
   }).sort((a,b) => a.version.localeCompare(b.version));
-
   const todayStr = todayET();
-  const cutoffDate = new Date(todayStr + 'T12:00:00-05:00');
-  cutoffDate.setDate(cutoffDate.getDate() - 6);
+  const cutoffDate = new Date(todayStr + 'T12:00:00-05:00'); cutoffDate.setDate(cutoffDate.getDate() - 6);
   const cutoffStr = cutoffDate.toISOString().split('T')[0];
   let totalRecent = 0;
   Object.entries(byDate).forEach(([d, v]) => { if (d >= cutoffStr) totalRecent += v.total; });
   const dailyAvg7 = Math.round(totalRecent / 7);
   const slaStats = { target: SLA_TARGET, dailyAvg7, onTrack: dailyAvg7 >= SLA_TARGET };
-
   res.json({
     segments: [seg(firms,'Recruiters'), seg(ceos,'Direct CEO'), seg(vcs,'VC Firms')],
     daily: Object.entries(byDate).sort(([a],[b])=>a>b?1:-1).map(([date,counts])=>({date,...counts})),
-    totals: {
-      contacted: allItems.filter(x => ['contacted','in conversation'].includes(x.status)).length,
-      inConversation: allItems.filter(x => x.status === 'in conversation').length,
-      drafts: allItems.filter(x => x.status === 'draft').length,
-      bounced: allItems.filter(x => x.status === 'bounced').length,
-      total: allItems.length,
-    },
-    sectorStats,
-    templateStats,
-    slaStats,
+    totals: { contacted: allItems.filter(x => ['contacted','in conversation'].includes(x.status)).length, inConversation: allItems.filter(x => x.status === 'in conversation').length, drafts: allItems.filter(x => x.status === 'draft').length, bounced: allItems.filter(x => x.status === 'bounced').length, total: allItems.length },
+    sectorStats, templateStats, slaStats,
   });
 });
 
@@ -615,10 +698,8 @@ const EXTENDED_FIELDS = ['status','notes','followup_date','is_job_search','gmail
 function makePatch(key) {
   return (req, res) => {
     try {
-      if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body))
-        return res.status(400).json({ error: 'Invalid request body' });
-      if (req.body.status !== undefined && !VALID_STATUSES.includes(req.body.status))
-        return res.status(400).json({ error: 'Invalid status value' });
+      if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) return res.status(400).json({ error: 'Invalid request body' });
+      if (req.body.status !== undefined && !VALID_STATUSES.includes(req.body.status)) return res.status(400).json({ error: 'Invalid status value' });
       const id = parseInt(req.params.id);
       const item = readSeed(key).find(x => x.id === id);
       if (!item) return res.status(404).json({ error: 'Not found' });
@@ -626,8 +707,7 @@ function makePatch(key) {
       if (!ov[key]) ov[key] = {};
       const upd = { ...(ov[key][String(id)] || {}) };
       EXTENDED_FIELDS.forEach(k => { if (req.body[k] !== undefined) upd[k] = req.body[k]; });
-      if (req.body.status && !['not contacted','draft'].includes(req.body.status) && !req.body.last_contacted)
-        upd.last_contacted = todayET();
+      if (req.body.status && !['not contacted','draft'].includes(req.body.status) && !req.body.last_contacted) upd.last_contacted = todayET();
       ov[key][String(id)] = upd;
       saveOverrides(ov);
       res.json({ ...item, ...upd });
@@ -639,10 +719,7 @@ app.patch('/api/firms/:id', requireAuth, makePatch('firms'));
 app.patch('/api/ceos/:id',  requireAuth, makePatch('ceos'));
 app.patch('/api/vcs/:id',   requireAuth, makePatch('vcs'));
 
-app.post('/api/reseed', requireAuth, (req, res) => {
-  saveOverrides({ firms:{}, ceos:{}, vcs:{} });
-  res.json({ ok: true });
-});
+app.post('/api/reseed', requireAuth, (req, res) => { saveOverrides({ firms:{}, ceos:{}, vcs:{} }); res.json({ ok: true }); });
 
 app.post('/api/sync', requireAuth, (req, res) => {
   const updates = req.body.updates || [];
@@ -652,42 +729,28 @@ app.post('/api/sync', requireAuth, (req, res) => {
   ['firms','ceos','vcs'].forEach(key => {
     readSeed(key).forEach(item => {
       (item.contacts||[]).forEach(c => {
-        const match = updates.find(u => u.email && c.email &&
-          u.email.toLowerCase() === c.email.toLowerCase());
+        const match = updates.find(u => u.email && c.email && u.email.toLowerCase() === c.email.toLowerCase());
         if (!match) return;
         if (!ov[key]) ov[key] = {};
         const upd = { ...(ov[key][String(item.id)] || {}) };
         if (match.status) upd.status = match.status;
-        if (match.note) {
-          const ts = new Date().toLocaleDateString('en-US',{month:'short',day:'numeric'});
-          upd.notes = upd.notes ? upd.notes+'\n['+ts+'] '+match.note : '['+ts+'] '+match.note;
-        }
-        ['gmail_thread_id','followup_date','cadence_day','is_job_search'].forEach(f => {
-          if (match[f] !== undefined) upd[f] = match[f];
-        });
+        if (match.note) { const ts = new Date().toLocaleDateString('en-US',{month:'short',day:'numeric'}); upd.notes = upd.notes ? upd.notes+'\n['+ts+'] '+match.note : '['+ts+'] '+match.note; }
+        ['gmail_thread_id','followup_date','cadence_day','is_job_search'].forEach(f => { if (match[f] !== undefined) upd[f] = match[f]; });
         upd.last_contacted = match.last_contacted || todayET();
-        ov[key][String(item.id)] = upd;
-        changed++;
+        ov[key][String(item.id)] = upd; changed++;
       });
     });
   });
   const dynamic = loadDynamic();
   let dynChanged = false;
   dynamic.forEach((item, idx) => {
-    const match = updates.find(u => u.email && item.contact_email &&
-      u.email.toLowerCase() === item.contact_email.toLowerCase());
+    const match = updates.find(u => u.email && item.contact_email && u.email.toLowerCase() === item.contact_email.toLowerCase());
     if (!match) return;
     if (match.status) dynamic[idx].status = match.status;
-    if (match.note) {
-      const ts = new Date().toLocaleDateString('en-US',{month:'short',day:'numeric'});
-      dynamic[idx].notes = dynamic[idx].notes ? dynamic[idx].notes+'\n['+ts+'] '+match.note : '['+ts+'] '+match.note;
-    }
-    ['gmail_thread_id','followup_date','cadence_day','is_job_search'].forEach(f => {
-      if (match[f] !== undefined) dynamic[idx][f] = match[f];
-    });
+    if (match.note) { const ts = new Date().toLocaleDateString('en-US',{month:'short',day:'numeric'}); dynamic[idx].notes = dynamic[idx].notes ? dynamic[idx].notes+'\n['+ts+'] '+match.note : '['+ts+'] '+match.note; }
+    ['gmail_thread_id','followup_date','cadence_day','is_job_search'].forEach(f => { if (match[f] !== undefined) dynamic[idx][f] = match[f]; });
     dynamic[idx].last_contacted = match.last_contacted || todayET();
-    changed++;
-    dynChanged = true;
+    changed++; dynChanged = true;
   });
   if (dynChanged) saveDynamic(dynamic);
   saveOverrides(ov);
