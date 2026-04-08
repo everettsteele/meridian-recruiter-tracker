@@ -127,6 +127,30 @@ function saveCronState(state) {
   try { fs.writeFileSync(CRON_STATE_PATH, JSON.stringify(state, null, 2)); } catch(e) { console.error('[ERROR]', e.message); }
 }
 
+// Google Apps Script POST — manually follows redirect to preserve POST method
+async function postToAppsScript(url, body) {
+  const payload = JSON.stringify(body);
+  const headers = { 'Content-Type': 'application/json' };
+  // First request: manual redirect so we can re-POST to the actual execution URL
+  const init = await fetch(url, {
+    method: 'POST', headers, body: payload,
+    redirect: 'manual',
+    signal: AbortSignal.timeout(15000)
+  });
+  console.log('[appsscript] initial status:', init.status);
+  if (init.status >= 300 && init.status < 400) {
+    const location = init.headers.get('location');
+    if (!location) throw new Error('Redirect with no Location header');
+    console.log('[appsscript] following redirect to:', location.slice(0, 80));
+    const final = await fetch(location, {
+      method: 'POST', headers, body: payload,
+      signal: AbortSignal.timeout(30000)
+    });
+    return final;
+  }
+  return init;
+}
+
 const DAILY_TARGET = 15;
 const SLA_TARGET   = 10;
 const PILLARS = ['firms', 'ceos', 'vcs'];
@@ -512,13 +536,18 @@ app.post('/api/create-drive-package', requireAuth, async (req, res) => {
   const appRecord = apps[idx];
   const folderName = (company || appRecord.company) + ' - ' + (role || appRecord.role);
   try {
-    const response = await fetch(webhookUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ folderName, variant, coverLetterText: cover_letter_text, company: company || appRecord.company, role: role || appRecord.role }),
-      signal: AbortSignal.timeout(30000)
+    const response = await postToAppsScript(webhookUrl, {
+      folderName, variant,
+      coverLetterText: cover_letter_text,
+      company: company || appRecord.company,
+      role: role || appRecord.role
     });
-    const result = await response.json();
+    const text = await response.text();
+    console.log('[create-drive-package] raw response:', text.slice(0, 200));
+    let result;
+    try { result = JSON.parse(text); } catch(e) {
+      return res.status(500).json({ error: 'Apps Script returned non-JSON: ' + text.slice(0, 120) });
+    }
     if (!result.ok) return res.status(500).json({ error: result.error || 'Drive webhook failed' });
     const today = todayET();
     apps[idx].drive_url = result.folderUrl;
@@ -622,7 +651,7 @@ app.get('/api/debug', (req, res) => {
   const appsByStatus = loadApplications().reduce((acc,a)=>{ acc[a.status]=(acc[a.status]||0)+1; return acc; }, {});
   const jbLeads = loadJobBoardLeads();
   res.json({
-    version: '5.1',
+    version: '5.2',
     seedCounts: { firms: readSeed('firms').length, ceos: readSeed('ceos').length, vcs: readSeed('vcs').length },
     dynamicCount: loadDynamic().length,
     applicationCount: loadApplications().length,
