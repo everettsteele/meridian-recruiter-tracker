@@ -22,7 +22,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .nav-item svg{flex-shrink:0;opacity:.7}
 .nav-item.active svg{opacity:1}
 .nav-badge{margin-left:auto;min-width:18px;height:18px;background:rgba(255,255,255,.15);color:#fff;font-size:10px;font-weight:700;border-radius:9px;display:inline-flex;align-items:center;justify-content:center;padding:0 5px}
-.nav-badge.urgent{background:#EF4444}.nav-badge.blue{background:#3B82F6}.nav-badge.green{background:#10B981}
+.nav-badge.urgent{background:#EF4444}.nav-badge.blue{background:#3B82F6}.nav-badge.green{background:#10B981}.nav-badge.orange{background:#F97316}
 .sidebar-footer{padding:14px 20px;border-top:1px solid rgba(255,255,255,.08);font-size:10px;color:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:space-between}
 .version-badge{font-size:10px;font-weight:700;color:#F97316;cursor:pointer;background:rgba(249,115,22,.15);border:1px solid rgba(249,115,22,.3);padding:2px 6px;border-radius:4px;transition:all .15s;flex-shrink:0}
 .version-badge:hover{background:rgba(249,115,22,.25);color:#fff}
@@ -261,26 +261,28 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     </div>
     <div class="modal-body">
       <div class="cl-version">
-        <div class="cl-ver-header"><span class="cl-ver-num current">v6.0</span><span class="cl-ver-label">Multi-Source Job Board + Snag + Combined Dashboard</span><span class="cl-ver-date">Apr 8, 2026</span></div>
+        <div class="cl-ver-header"><span class="cl-ver-num current">v7.0</span><span class="cl-ver-label">Networking Pillar + Rich Dashboard + Morning Sync</span><span class="cl-ver-date">Apr 8, 2026</span></div>
+        <ul class="cl-changes">
+          <li>Networking pillar: Events &amp; Meetings with inline notes, contacts, next steps<span class="cl-tag cl-tag-new">new</span></li>
+          <li>Google Calendar sync via morning sync session<span class="cl-tag cl-tag-new">new</span></li>
+          <li>Nav restructured: Email Outreach / Applications / Networking sections<span class="cl-tag cl-tag-new">new</span></li>
+          <li>Dashboard rebuilt with 3 pillar KPI cards, trend arrows, SLA chips, insight chips<span class="cl-tag cl-tag-new">new</span></li>
+          <li>Morning sync endpoint returns needsPackage, networking status, outreach SLA<span class="cl-tag cl-tag-new">new</span></li>
+          <li>Packages auto-built during morning sync without manual trigger<span class="cl-tag cl-tag-fix">fix</span></li>
+        </ul>
+      </div>
+      <div class="cl-version">
+        <div class="cl-ver-header"><span class="cl-ver-num">v6.0</span><span class="cl-ver-label">Multi-Source Job Board + Snag + Combined Dashboard</span><span class="cl-ver-date">Apr 8, 2026</span></div>
         <ul class="cl-changes">
           <li>5 job board sources: JewishJobs, ExecThread, CoS Network, Idealist, Built In ATL<span class="cl-tag cl-tag-new">new</span></li>
-          <li>Snag button moves lead from Job Board into Applications queue as Queued<span class="cl-tag cl-tag-new">new</span></li>
-          <li>Queued status added to application pipeline (replaces Applied as default)<span class="cl-tag cl-tag-new">new</span></li>
-          <li>Dashboard now shows outreach + application pipeline in a single combined view<span class="cl-tag cl-tag-new">new</span></li>
-          <li>Metrics tab removed (merged into Dashboard)<span class="cl-tag cl-tag-fix">fix</span></li>
+          <li>Snag button moves lead from Job Board into Applications queue<span class="cl-tag cl-tag-new">new</span></li>
+          <li>Queued status added to application pipeline<span class="cl-tag cl-tag-new">new</span></li>
         </ul>
       </div>
       <div class="cl-version">
-        <div class="cl-ver-header"><span class="cl-ver-num">v5.2</span><span class="cl-ver-label">Drive Integration + Job Board</span><span class="cl-ver-date">Apr 8, 2026</span></div>
+        <div class="cl-ver-header"><span class="cl-ver-num">v5.2</span><span class="cl-ver-label">Drive Integration</span><span class="cl-ver-date">Apr 8, 2026</span></div>
         <ul class="cl-changes">
           <li>Google Drive package creation from application record<span class="cl-tag cl-tag-new">new</span></li>
-          <li>JewishJobs crawl, Job Board tab, login SyntaxError fix<span class="cl-tag cl-tag-fix">fix</span></li>
-        </ul>
-      </div>
-      <div class="cl-version">
-        <div class="cl-ver-header"><span class="cl-ver-num">v4.0</span><span class="cl-ver-label">Application Tracking</span><span class="cl-ver-date">Apr 8, 2026</span></div>
-        <ul class="cl-changes">
-          <li>Applications tab, Metrics tab, email sync endpoint<span class="cl-tag cl-tag-new">new</span></li>
         </ul>
       </div>
     </div>
@@ -311,17 +313,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       <div class="sidebar-logo-sub">Built instead of applying.</div>
     </div>
     <div class="sidebar-nav">
-      <div class="nav-section-label">Operations</div>
+      <div class="nav-item" id="nav-dashboard" onclick="switchTab('dashboard');closeSidebar()">
+        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        Dashboard
+      </div>
+      <div class="nav-section-label">Email Outreach</div>
       <div class="nav-item active" id="nav-queue" onclick="switchTab('queue');closeSidebar()">
         <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
         Queue
         <span class="nav-badge urgent" id="badge-queue">0</span>
       </div>
-      <div class="nav-item" id="nav-dashboard" onclick="switchTab('dashboard');closeSidebar()">
-        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-        Dashboard
-      </div>
-      <div class="nav-section-label">Pillars</div>
       <div class="nav-item" id="nav-recruiters" onclick="switchTab('recruiters');closeSidebar()">
         <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
         Recruiters
@@ -337,7 +338,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
         VC Firms
         <span class="nav-badge green" id="badge-vcs">0</span>
       </div>
-      <div class="nav-section-label">Jobs</div>
+      <div class="nav-section-label">Applications</div>
       <div class="nav-item" id="nav-applications" onclick="switchTab('applications');closeSidebar()">
         <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg>
         Applications
@@ -348,10 +349,20 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
         Job Board
         <span class="nav-badge urgent" id="badge-jobboard">0</span>
       </div>
+      <div class="nav-section-label">Networking</div>
+      <div class="nav-item" id="nav-events" onclick="switchTab('events');closeSidebar()">
+        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        Events &amp; Meetings
+        <span class="nav-badge orange" id="badge-networking"></span>
+      </div>
+      <div class="nav-item" id="nav-netcontacts" onclick="switchTab('netcontacts');closeSidebar()">
+        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="23" y1="11" x2="17" y2="11"/><line x1="20" y1="8" x2="20" y2="14"/></svg>
+        Contacts
+      </div>
     </div>
     <div class="sidebar-footer">
       <span>everett.steele@gmail.com</span>
-      <span class="version-badge" onclick="showChangelog()">v6.0</span>
+      <span class="version-badge" onclick="showChangelog()">v7.0</span>
     </div>
   </nav>
 
@@ -391,7 +402,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 const STORAGE_KEY='hopespot_token',API_KEY_STORE='hopespot_apikey';
 let TOKEN='',API_KEY_MODE=false,DATA=[],CEOs=[],VCs=[],STATS=null,DUE=[],FILTER='all',TAB='queue',SECTOR_FILTER='all';
 const TODAY=new Date().toISOString().split('T')[0];
-const TITLES={queue:['Morning Queue',"Today's outreach and follow-ups"],dashboard:['Dashboard','Outreach and application pipeline'],recruiters:['Recruiters','Executive search firms'],ceos:['Direct CEO / Network','Referral asks and warm network contacts'],vcs:['VC Firms','Portfolio COO and operating partner outreach'],applications:['Applications','Job application pipeline'],jobboard:['Job Board','JewishJobs \u00b7 ExecThread \u00b7 CoS Network \u00b7 Idealist \u00b7 Built In ATL']};
+const TITLES={
+  queue:['Morning Queue',"Today's outreach and follow-ups"],
+  dashboard:['Dashboard','All three pillars at a glance'],
+  recruiters:['Recruiters','Executive search firms'],
+  ceos:['Direct CEO / Network','Referral asks and warm network contacts'],
+  vcs:['VC Firms','Portfolio COO and operating partner outreach'],
+  applications:['Applications','Job application pipeline'],
+  jobboard:['Job Board','JewishJobs \u00b7 ExecThread \u00b7 CoS Network \u00b7 Idealist \u00b7 Built In ATL'],
+  events:['Events & Meetings','Networking log with notes, contacts, and next steps'],
+  netcontacts:['Networking Contacts','Contacts from events and meetings']
+};
 const SECTOR_LABELS={healthtech:'Healthtech',revenue_gtm:'Revenue/GTM',analytics:'Analytics',fintech:'FinTech',vertical_saas:'Vertical SaaS',general:'General SaaS',network:'Network'};
 
 let _logPending=null;
@@ -522,7 +543,7 @@ function updateBadges(){
 
 function switchTab(t){
   TAB=t;FILTER='all';SECTOR_FILTER='all';
-  ['queue','dashboard','recruiters','ceos','vcs','applications','jobboard'].forEach(x=>document.getElementById('nav-'+x)?.classList.toggle('active',x===t));
+  ['queue','dashboard','recruiters','ceos','vcs','applications','jobboard','events','netcontacts'].forEach(x=>document.getElementById('nav-'+x)?.classList.toggle('active',x===t));
   const [title,sub]=TITLES[t]||['',''];
   document.getElementById('topbar-title').textContent=title;
   document.getElementById('topbar-sub').textContent=sub;
@@ -532,9 +553,16 @@ function switchTab(t){
 function renderCurrent(){
   if(TAB==='queue')renderQueue();
   else if(TAB==='dashboard')renderDashboard();
-  else if(TAB==='applications')loadApps();
+  else if(TAB==='applications'){if(typeof loadApps==='function')loadApps();else document.getElementById('main-content').innerHTML='<div class="empty">Loading...</div>';}
   else if(TAB==='jobboard'){if(typeof renderJobBoard==='function')renderJobBoard();else document.getElementById('main-content').innerHTML='<div class="empty">Loading...</div>';}
+  else if(TAB==='events'){if(typeof renderNetworking==='function')renderNetworking();else document.getElementById('main-content').innerHTML='<div class="empty">Loading...</div>';}
+  else if(TAB==='netcontacts'){if(typeof renderNetworkingContacts==='function')renderNetworkingContacts();else document.getElementById('main-content').innerHTML='<div class="empty">Loading...</div>';}
   else renderList();
+}
+
+function renderDashboard(){
+  // Overridden by apps.js. Fallback:
+  document.getElementById('main-content').innerHTML='<div class="empty">Loading dashboard...</div>';
 }
 
 function renderQueue(){
@@ -547,7 +575,7 @@ function renderQueue(){
   const markAllBtn=sendNow.length>0?'<button class="btn-green section-action" onclick="markDraftsSent()">&check; Mark All Sent</button>':'';
   html+='<div class="section-header"><div class="section-title">Send Now</div><div class="section-count">'+sendNow.length+' drafts waiting</div>'+markAllBtn+'</div>';
   if(!sendNow.length)html+='<div class="empty" style="padding:20px 0">No drafts queued. Hit Run Queue to stage the next batch.</div>';
-  else['recruiter','ceo','vc'].forEach(p=>{sendNow.filter(x=>x._pillar===p).forEach(item=>{const c=(item.contacts||[]).find(c=>c.status==='draft')||(item.contacts||[])[0]||{};html+='<div class="queue-card"><span class="pillar-tag pillar-'+p+'">'+item._label+'</span><div class="queue-info"><div class="queue-name">'+item.name+'</div><div class="queue-contact">'+(c.name||'')+'</div><div class="queue-email">'+(c.email||'')+'</div></div><button class="btn btn-send" onclick="markSent(\''+item._endpoint+'\','+item.id+',this)">Mark Sent</button></div>';});});
+  else['recruiter','ceo','vc'].forEach(p=>{sendNow.filter(x=>x._pillar===p).forEach(item=>{const c=(item.contacts||[]).find(c=>c.status==='draft')||(item.contacts||[])[0]||{};html+='<div class="queue-card"><span class="pillar-tag pillar-'+p+'">'+item._label+'</span><div class="queue-info"><div class="queue-name">'+item.name+'</div><div class="queue-contact">'+(c.name||'')+'</div><div class="queue-email">'+(c.email||'')+'</div></div><button class="btn btn-send" onclick="markSent(\"'+item._endpoint+'\",'+item.id+',this)">Mark Sent</button></div>';});});
   html+='<div class="divider"></div><div class="section-header"><div class="section-title">Follow Up Today</div><div class="section-count">'+followUp.length+' due</div></div>';
   if(!followUp.length)html+='<div class="empty" style="padding:20px 0">No follow-ups due today.</div>';
   else followUp.forEach(item=>{
@@ -559,8 +587,8 @@ function renderQueue(){
     const escapedName=item.org_name.replace(/'/g,"\\'");
     const escapedEmail=item.contact_email.replace(/'/g,"\\'");
     const logBtn=ep
-      ?'<button class="btn btn-followup" onclick="openLogModal(\''+escapedName+'\',\''+escapedEmail+'\',\''+ep+'\','+item.org_id+',false)">Log</button>'
-      :'<button class="btn btn-followup" onclick="openLogModal(\''+escapedName+'\',\''+escapedEmail+'\',null,\''+item.org_id+'\',true)">Log</button>';
+      ?'<button class="btn btn-followup" onclick="openLogModal(\"'+escapedName+'\",\"'+escapedEmail+'\",\"'+ep+'\",'+item.org_id+',false)">Log</button>'
+      :'<button class="btn btn-followup" onclick="openLogModal(\"'+escapedName+'\",\"'+escapedEmail+'\",null,\"'+item.org_id+'\",true)">Log</button>';
     html+='<div class="queue-card '+(ov?'followup-overdue':'followup')+'"><span class="pillar-tag pillar-'+pillarKey+'">'+pillarLabel+'</span><div class="queue-info"><div class="queue-name">'+item.org_name+'</div><div class="queue-contact">'+item.contact_name+'</div><div class="queue-email">'+item.contact_email+'</div><div class="queue-meta">Last contacted '+(item.days_since_contact!=null?item.days_since_contact+' days ago':'\u2014')+' &middot; Due '+item.followup_date+' &middot; Day '+(item.cadence_day||1)+'</div></div>'+logBtn+'</div>';
   });
   document.getElementById('main-content').innerHTML=html;
@@ -572,164 +600,6 @@ async function markSent(endpoint,id,btn){
   await fetch(endpoint+'/'+id,{method:'PATCH',headers:authHeaders(),body:JSON.stringify({status:'contacted',followup_date:followup})});
   await loadAll();
 }
-
-// Combined Dashboard: outreach + application pipeline in one view
-async function renderDashboard(){
-  // Fetch apps alongside existing outreach stats
-  let apps=[];
-  try{apps=await(await fetch('/api/applications',{headers:authFetchHeaders()})).json();}catch(e){}
-  if(!STATS){document.getElementById('main-content').innerHTML='<div class="empty">Loading...</div>';return;}
-  const {segments,daily,totals}=STATS;
-  const overallRate=totals.contacted>0?Math.round((totals.inConversation/totals.contacted)*100):0;
-  const maxD=daily.length?Math.max(...daily.map(d=>d.total),1):1;
-  const CHART_H=120;
-  const bc=['#3B82F6','#F97316','#10B981'];
-  // App pipeline stats
-  const appQueued=apps.filter(a=>a.status==='queued').length;
-  const appApplied=apps.filter(a=>a.status==='applied').length;
-  const appConfirmed=apps.filter(a=>['confirmation_received','interviewing','offer'].includes(a.status)).length;
-  const appInterview=apps.filter(a=>['interviewing','offer'].includes(a.status)).length;
-  const appOffer=apps.filter(a=>a.status==='offer').length;
-  // Top row: outreach + pipeline side by side
-  let html='<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px">';
-  html+='<div class="dash-card"><div class="dash-card-title">Outreach</div><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center">';
-  [[totals.contacted,'Sent','#1F2D3D'],[totals.inConversation,'Replies','#10B981'],[overallRate+'%','Reply Rate',overallRate>5?'#10B981':'#6B7280'],[DUE.length,'Due Today',DUE.length>3?'#EF4444':'#9CA3AF']].forEach(([v,l,c])=>{html+='<div><div style="font-size:26px;font-weight:700;color:'+c+'">'+v+'</div><div style="font-size:10px;color:#9CA3AF;text-transform:uppercase;letter-spacing:.04em;margin-top:2px">'+l+'</div></div>';});
-  html+='</div></div>';
-  html+='<div class="dash-card"><div class="dash-card-title">Applications Pipeline</div><div style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px;text-align:center">';
-  [[appQueued,'Queued','#7c3aed'],[appApplied,'Applied','#6b7280'],[appConfirmed,'Confirmed','#2563eb'],[appInterview,'Interview','#d97706'],[appOffer,'Offer','#16a34a']].forEach(([v,l,c])=>{html+='<div><div style="font-size:20px;font-weight:700;color:'+c+'">'+v+'</div><div style="font-size:9px;color:#9CA3AF;text-transform:uppercase;letter-spacing:.03em;margin-top:2px">'+l+'</div></div>';});
-  html+='</div></div>';
-  html+='</div>';
-  // Outreach pillar breakdown
-  html+='<div class="dash-grid">';
-  segments.forEach((s,i)=>{const pct=s.contacted>0?Math.round((s.conv/s.contacted)*100):0;html+='<div class="dash-card"><div class="dash-card-title">'+s.label+'</div><div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:14px"><div><div class="big-num">'+s.contacted+'</div><div class="big-sub">contacted</div></div><div class="rate-circle" style="border-color:'+bc[i]+'"><div class="rate-pct">'+pct+'%</div><div class="rate-lbl">replies</div></div></div><div class="seg-row"><span class="seg-lbl">In conversation</span><span class="seg-val">'+s.conv+'</span></div><div class="seg-row"><span class="seg-lbl">Drafts pending</span><span class="seg-val" style="color:#8B5CF6">'+s.drafts+'</span></div><div class="seg-row"><span class="seg-lbl">Bounced</span><span class="seg-val" style="color:#F59E0B">'+s.bounced+'</span></div></div>';});
-  html+='</div>';
-  // Daily chart + SLA + Template
-  let chartInner='';
-  if(!daily.length){chartInner='<div style="color:#9CA3AF;font-size:13px;padding-top:12px">No outreach activity yet.</div>';}
-  else{
-    let bars='';
-    daily.forEach(d=>{
-      const totalH=Math.round((d.total/maxD)*CHART_H);
-      const rH=d.total>0?Math.round((d.recruiters/d.total)*totalH):0;
-      const cH=d.total>0?Math.round((d.ceos/d.total)*totalH):0;
-      const vH=totalH-rH-cH;
-      const label=new Date(d.date+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});
-      bars+='<div class="chart-col" style="height:'+totalH+'px"><div class="chart-count">'+d.total+'</div><div class="chart-bar" style="height:'+totalH+'px">'+(vH>0?'<div class="chart-seg" style="height:'+vH+'px;background:#10B981"></div>':'')+(cH>0?'<div class="chart-seg" style="height:'+cH+'px;background:#F97316"></div>':'')+(rH>0?'<div class="chart-seg" style="height:'+rH+'px;background:#3B82F6"></div>':'')+'</div><div class="chart-label">'+label+'</div></div>';
-    });
-    chartInner='<div class="chart-wrap">'+bars+'</div><div class="legend"><div class="legend-item"><div class="legend-dot" style="background:#3B82F6"></div>Recruiters</div><div class="legend-item"><div class="legend-dot" style="background:#F97316"></div>CEOs</div><div class="legend-item"><div class="legend-dot" style="background:#10B981"></div>VCs</div></div>';
-  }
-  const sla=STATS.slaStats||{target:10,dailyAvg7:0,onTrack:false};
-  const tmplStats=STATS.templateStats||[];
-  let slaHtml='<div class="dash-card"><div class="dash-card-title">SLA Compliance</div><div style="display:flex;align-items:flex-end;gap:8px;margin-bottom:6px"><div class="sla-big '+(sla.onTrack?'sla-ok':'sla-miss')+'">'+sla.dailyAvg7+'</div><div style="font-size:13px;color:#9CA3AF;padding-bottom:5px">/ '+sla.target+' target</div></div><div style="font-size:11px;color:'+(sla.onTrack?'#10B981':'#EF4444')+'">'+( sla.onTrack?'On track':'Below target')+'&nbsp;&#8212;&nbsp;7-day rolling avg</div></div>';
-  let tmplHtml='<div class="dash-card"><div class="dash-card-title">Template A/B</div>';
-  if(!tmplStats.length){tmplHtml+='<div style="color:#9CA3AF;font-size:12px">No data yet.</div>';}
-  else{tmplHtml+='<table class="perf-table"><tr><th>Version</th><th>Sent</th><th>Replies</th><th>Rate</th></tr>'+tmplStats.map(t=>'<tr><td><span class="tv-badge tv-'+t.version+'">'+t.version+'</span></td><td>'+t.sent+'</td><td class="hl">'+t.replies+'</td><td>'+t.replyRate+'%</td></tr>').join('')+'</table>';}
-  tmplHtml+='</div>';
-  html+='<div class="dash-main-row"><div class="dash-card"><div class="dash-card-title">Daily Outreach Activity</div>'+chartInner+'</div><div class="right-stack">'+slaHtml+tmplHtml+'</div></div>';
-  const secStats=STATS.sectorStats||[];
-  if(secStats.length){html+='<div class="dash-card" style="margin-bottom:16px"><div class="dash-card-title">CEO Outreach by Sector</div><table class="perf-table"><tr><th>Sector</th><th>Sent</th><th>Replies</th><th>Rate</th></tr>'+secStats.map(s=>'<tr><td><span class="sector-badge sector-'+s.sector+'">'+s.label+'</span></td><td>'+s.sent+'</td><td class="hl">'+s.replies+'</td><td>'+s.replyRate+'%</td></tr>').join('')+'</table></div>';}
-  document.getElementById('main-content').innerHTML=html;
-}
-
-// --- APPLICATIONS ---
-let appsData=[];
-
-async function loadApps(){
-  try{const r=await fetch('/api/applications',{headers:authFetchHeaders()});appsData=await r.json();}catch(e){appsData=[];}
-  const ab=document.getElementById('badge-applications');if(ab)ab.textContent=appsData.filter(a=>!['rejected','withdrawn','offer'].includes(a.status)).length;
-  renderApplications();
-}
-
-function renderApplications(){
-  const today=new Date().toISOString().split('T')[0];
-  const counts={};
-  appsData.forEach(a=>{counts[a.status]=(counts[a.status]||0)+1;});
-  const APP_ST={queued:{label:'Queued',color:'#7c3aed'},applied:{label:'Applied',color:'#6b7280'},confirmation_received:{label:'Confirmed',color:'#2563eb'},interviewing:{label:'Interviewing',color:'#d97706'},offer:{label:'Offer',color:'#16a34a'},rejected:{label:'Rejected',color:'#dc2626'},no_response:{label:'No Response',color:'#9ca3af'},withdrawn:{label:'Withdrawn',color:'#9ca3af'}};
-  const summary=Object.entries(APP_ST).filter(([k])=>counts[k]).map(([k,v])=>'<span style="padding:4px 10px;border-radius:12px;font-size:12px;font-weight:600;background:'+v.color+'18;color:'+v.color+';border:1px solid '+v.color+'30">'+counts[k]+' '+v.label+'</span>').join('');
-  const rows=appsData.map(app=>{
-    const st=APP_ST[app.status]||{label:app.status,color:'#6b7280'};
-    const overdue=app.follow_up_date&&app.follow_up_date<=today&&!['rejected','offer','withdrawn'].includes(app.status);
-    const latestAct=(app.activity||[]).slice(-1)[0];
-    const actHtml=latestAct?'<span style="font-size:11px;color:#9CA3AF">'+latestAct.date+': '+(latestAct.note||latestAct.type)+'</span>':'';
-    return '<tr style="border-bottom:1px solid #F3F4F6">'
-      +'<td style="padding:10px 0;font-weight:600;font-size:13px">'+app.company+'</td>'
-      +'<td style="padding:10px 8px;font-size:12px;color:#6B7280">'+app.role+'</td>'
-      +'<td style="padding:10px 8px;font-size:12px">'+(app.applied_date||'')+'</td>'
-      +'<td style="padding:10px 8px"><select onchange="patchApp(\''+app.id+'\',{status:this.value})" style="font-size:11px;padding:3px 5px;color:'+st.color+';border:1px solid '+st.color+'40;border-radius:4px;background:'+st.color+'12;cursor:pointer">'+Object.entries(APP_ST).map(([k,v])=>'<option value="'+k+'" '+(app.status===k?'selected':'')+'>'+v.label+'</option>').join('')+'</select></td>'
-      +'<td style="padding:10px 8px;font-size:12px;color:'+(overdue?'#EF4444':'#6B7280')+'">'+(app.follow_up_date||'')+(overdue?' \u26a0':'')+'</td>'
-      +'<td style="padding:10px 8px">'+actHtml+'</td>'
-      +'<td style="padding:10px 0;white-space:nowrap">'
-        +(app.drive_url?'<a href="'+app.drive_url+'" target="_blank" style="display:inline-block;padding:3px 8px;background:#16a34a;border-radius:5px;font-size:11px;color:#fff;text-decoration:none;margin-right:3px">Drive</a>':'')
-        +(app.notion_url?'<a href="'+app.notion_url+'" target="_blank" style="display:inline-block;padding:3px 8px;background:#f3f4f6;border-radius:5px;font-size:11px;color:#374151;text-decoration:none;margin-right:3px">Package</a>':'')
-        +(app.source_url?'<a href="'+app.source_url+'" target="_blank" style="display:inline-block;padding:3px 8px;background:#f97316;border-radius:5px;font-size:11px;color:#fff;text-decoration:none;margin-right:3px">Apply</a>':'')
-        +'<button onclick="deleteApp(\''+app.id+'\')" style="padding:3px 8px;border-radius:5px;border:1px solid #FCA5A5;background:#FEF2F2;color:#EF4444;font-size:11px;cursor:pointer">\u2715</button>'
-      +'</td>'
-      +'</tr>';
-  }).join('');
-  document.getElementById('main-content').innerHTML=
-    '<div class="queue-title" style="margin-bottom:4px">Applications</div>'
-    +'<div class="queue-sub" style="margin-bottom:16px">'+appsData.length+' application'+(appsData.length!==1?'s':'')+' tracked</div>'
-    +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px">'+summary+'</div>'
-    +'<button onclick="showAddAppModal()" style="margin-bottom:16px;padding:6px 14px;background:#F97316;color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer">+ Log Application</button>'
-    +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">'
-    +'<thead><tr style="border-bottom:2px solid #E5E7EB">'
-    +'<th style="text-align:left;padding:8px 0;font-size:10px;color:#9CA3AF;font-weight:700;text-transform:uppercase;letter-spacing:.05em">Company</th>'
-    +'<th style="text-align:left;padding:8px;font-size:10px;color:#9CA3AF;font-weight:700;text-transform:uppercase;letter-spacing:.05em">Role</th>'
-    +'<th style="text-align:left;padding:8px;font-size:10px;color:#9CA3AF;font-weight:700;text-transform:uppercase;letter-spacing:.05em">Added</th>'
-    +'<th style="text-align:left;padding:8px;font-size:10px;color:#9CA3AF;font-weight:700;text-transform:uppercase;letter-spacing:.05em">Status</th>'
-    +'<th style="text-align:left;padding:8px;font-size:10px;color:#9CA3AF;font-weight:700;text-transform:uppercase;letter-spacing:.05em">Follow-up</th>'
-    +'<th style="text-align:left;padding:8px;font-size:10px;color:#9CA3AF;font-weight:700;text-transform:uppercase;letter-spacing:.05em">Activity</th>'
-    +'<th style="text-align:left;padding:8px 0;font-size:10px;color:#9CA3AF;font-weight:700;text-transform:uppercase;letter-spacing:.05em">Links</th>'
-    +'</tr></thead>'
-    +'<tbody>'+(rows||'<tr><td colspan="7" style="text-align:center;padding:32px;color:#9CA3AF">No applications yet.</td></tr>')+'</tbody>'
-    +'</table></div>'
-    +'<div id="add-app-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center" onclick="if(event.target===this)this.style.display=\'none\'">'
-    +'<div style="background:#fff;padding:24px;border-radius:12px;width:440px;max-width:92%;box-shadow:0 24px 64px rgba(0,0,0,.2)">'
-    +'<h3 style="margin:0 0 16px;font-size:15px;font-weight:700">Log Application</h3>'
-    +'<div style="display:flex;flex-direction:column;gap:10px">'
-    +'<input type="text" id="nac-company" placeholder="Company *" style="padding:8px 12px;border:1px solid #E5E7EB;border-radius:6px;font-size:13px;outline:none">'
-    +'<input type="text" id="nac-role" placeholder="Role *" style="padding:8px 12px;border:1px solid #E5E7EB;border-radius:6px;font-size:13px;outline:none">'
-    +'<input type="text" id="nac-url" placeholder="Apply URL" style="padding:8px 12px;border:1px solid #E5E7EB;border-radius:6px;font-size:13px;outline:none">'
-    +'<input type="text" id="nac-notion" placeholder="Notion URL" style="padding:8px 12px;border:1px solid #E5E7EB;border-radius:6px;font-size:13px;outline:none">'
-    +'<input type="date" id="nac-date" style="padding:8px 12px;border:1px solid #E5E7EB;border-radius:6px;font-size:13px;outline:none">'
-    +'<textarea id="nac-notes" placeholder="Notes" rows="2" style="padding:8px 12px;border:1px solid #E5E7EB;border-radius:6px;font-size:13px;font-family:inherit;resize:vertical"></textarea>'
-    +'<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px">'
-    +'<button onclick="submitAddApp()" style="padding:8px 20px;background:#F97316;color:#fff;border:none;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer">Save</button>'
-    +'<button onclick="document.getElementById(\'add-app-modal\').style.display=\'none\'" style="padding:8px 16px;background:#F3F4F6;color:#6B7280;border:none;border-radius:7px;font-size:13px;cursor:pointer">Cancel</button>'
-    +'</div></div></div></div>';
-}
-
-async function patchApp(id,body){
-  await fetch('/api/applications/'+id,{method:'PATCH',headers:authHeaders(),body:JSON.stringify(body)});
-  await loadApps();
-}
-
-async function deleteApp(id){
-  if(!confirm('Remove this application?'))return;
-  await fetch('/api/applications/'+id,{method:'DELETE',headers:authFetchHeaders()});
-  await loadApps();
-}
-
-function showAddAppModal(){
-  const m=document.getElementById('add-app-modal');
-  if(m){m.style.display='flex';document.getElementById('nac-date').value=new Date().toISOString().split('T')[0];}
-}
-
-async function submitAddApp(){
-  const company=document.getElementById('nac-company').value.trim();
-  const role=document.getElementById('nac-role').value.trim();
-  if(!company||!role){alert('Company and role required.');return;}
-  await fetch('/api/applications',{method:'POST',headers:authHeaders(),body:JSON.stringify({
-    company,role,
-    source_url:document.getElementById('nac-url').value.trim(),
-    notion_url:document.getElementById('nac-notion').value.trim(),
-    applied_date:document.getElementById('nac-date').value,
-    notes:document.getElementById('nac-notes').value.trim()
-  })});
-  document.getElementById('add-app-modal').style.display='none';
-  await loadApps();
-}
-// --- END APPLICATIONS ---
 
 function currentData(){return TAB==='ceos'?CEOs:TAB==='vcs'?VCs:DATA;}
 function nameField(item){return TAB==='ceos'?item.company:TAB==='vcs'?item.firm:item.name;}
@@ -758,7 +628,7 @@ function renderList(){
   let sectorRow='';
   if(TAB==='ceos'){
     const sectors=[...new Set(currentData().map(x=>x.sector||'general'))].filter(Boolean).sort();
-    const secBtns=sectors.map(s=>'<button class="filter-btn sfbtn'+(SECTOR_FILTER===s?' active':'')+' " onclick="setSectorFilter(\''+s+'\',this)">'+(SECTOR_LABELS[s]||s)+'</button>').join('');
+    const secBtns=sectors.map(s=>'<button class="filter-btn sfbtn'+(SECTOR_FILTER===s?' active':'')+' " onclick="setSectorFilter(\"'+s+'\",this)">'+(SECTOR_LABELS[s]||s)+'</button>').join('');
     sectorRow='<div class="sector-filters"><button class="filter-btn sfbtn'+(SECTOR_FILTER==='all'?' active':'')+' " onclick="setSectorFilter(\'all\',this)">All Sectors</button>'+secBtns+'</div>';
   }
   const cardsHtml=items.length?items.map(item=>{
