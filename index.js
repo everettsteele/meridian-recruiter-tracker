@@ -168,19 +168,63 @@ function bootSeedApplications() {
 }
 
 // ================================================================
-// BATCH PACKAGE BUILDER
+// COVER LETTER GENERATION
 // ================================================================
 
-const COVER_LETTER_SYSTEM = `You are writing a cover letter for Everett Steele, a senior executive and veteran. Write in first person. Be direct and specific. No filler phrases. No "I am excited to" openings. Start with a strong declarative statement tied to the role.
+// Strip any preamble/meta-commentary that Claude may have added before the actual letter.
+// Handles "--- " separators and lines that start with meta phrases.
+function cleanCoverLetterText(raw) {
+  if (!raw) return '';
+  let text = raw.trim();
+  // Strip everything before a --- separator if present
+  const sepIdx = text.indexOf('---');
+  if (sepIdx > -1) {
+    const afterSep = text.slice(sepIdx + 3).trim();
+    if (afterSep.length > 100) text = afterSep;
+  }
+  // Strip leading lines that look like meta-commentary (not part of the letter)
+  const metaPatterns = [
+    /^the job description/i,
+    /^i(?:'m| am) working with/i,
+    /^i(?:'ll| will) write/i,
+    /^since the (job|jd|description)/i,
+    /^note:/i,
+    /^based on the/i,
+    /^working from/i,
+  ];
+  const lines = text.split('\n');
+  let startIdx = 0;
+  while (startIdx < lines.length && metaPatterns.some(p => p.test(lines[startIdx].trim()))) startIdx++;
+  text = lines.slice(startIdx).join('\n').trim();
+  // Remove markdown bold/italic markers
+  text = text.replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\*([^*]+)\*/g, '$1');
+  return text;
+}
 
-Everett's background: Veteran (US Army, Infantry Recon Platoon Leader, Baghdad), 3 successful exits as founder/CEO, SVP Operations at ChartRequest (scaled $2M to $16M ARR, 40 to 180+ employees, 4 countries), Chief of Staff to Atlanta City Council/Mayor Andre Dickens, UX/Product Director at UpTogether (1.25M members), Forbes Disruptor in Logistics, ABC 40 Under 40, LEAD Atlanta Fellow. Deep operator: EOS implementation, scorecards, OKRs, cross-functional team leadership, GTM alignment, international operations. Currently building Meridian, an AI-native venture studio.
+// Cover letter system prompt — explicit: no preamble, no notes, start with the letter
+const COVER_LETTER_SYSTEM = `You are writing a cover letter for Everett Steele, a senior executive and veteran.
 
-Write 3-4 paragraphs. First: direct value statement tied to this specific role. Second: one concrete achievement with real numbers. Third: specific reason this company and role. Fourth (optional): brief close. No sign-off needed. Under 350 words.`;
+CRITICAL OUTPUT RULES:
+- Begin your response with the FIRST SENTENCE OF THE LETTER. Nothing else before it.
+- Do NOT include any preamble, disclaimers, notes, meta-commentary, or explanations of what you are doing.
+- Do NOT write things like "The job description didn't load" or "I'll write based on" or "Note:" or any separator like "---".
+- Do NOT use markdown bold (**text**) or any other markdown formatting. Plain text only.
+- If the job description is incomplete, write the best letter you can from the available context. Do not mention the gap.
 
-async function generateCoverLetterForApp(app, jdText) {
+VOICE AND STYLE:
+- First person. Direct and declarative. No filler phrases. No "I am excited to" openings.
+- Start with a strong statement tied specifically to the role.
+
+EVERETT'S BACKGROUND:
+Veteran (US Army, Infantry Recon Platoon Leader, Baghdad). 3 successful exits as founder/CEO. SVP Operations at ChartRequest: scaled from $2M to $16M ARR, 40 to 180+ employees across 4 countries in under 3 years. Built full operating infrastructure: EOS, scorecards, OKRs, cross-functional accountability systems. Chief of Staff to Atlanta City Council/Mayor Andre Dickens. UX/Product Director at UpTogether (1.25M members). Forbes Disruptor in Logistics. ABC 40 Under 40. LEAD Atlanta Fellow. Currently building Meridian, an AI-native venture studio.
+
+FORMAT:
+3-4 paragraphs. Under 350 words. No sign-off needed. Output the letter text only.`;
+
+async function generateCoverLetterForApp(appRecord, jdText) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY not set');
-  const prompt = `ROLE: ${app.role} at ${app.company}\n\nJOB DESCRIPTION:\n${jdText.slice(0, 3000)}\n\nNotes about this role: ${app.notes || 'None'}\n\nWrite the cover letter now.`;
+  const prompt = `ROLE: ${appRecord.role} at ${appRecord.company}\n\nJOB DESCRIPTION:\n${jdText.slice(0, 3000)}\n\nNotes about this role: ${appRecord.notes || 'None'}\n\nWrite the cover letter now. Start immediately with the first sentence.`;
   const resp = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
@@ -189,7 +233,8 @@ async function generateCoverLetterForApp(app, jdText) {
   });
   if (!resp.ok) throw new Error(`Anthropic API error: ${resp.status}`);
   const data = await resp.json();
-  return data.content?.[0]?.text || '';
+  const raw = data.content?.[0]?.text || '';
+  return cleanCoverLetterText(raw);
 }
 
 async function fetchJobDescription(url) {
@@ -209,7 +254,7 @@ async function fetchJobDescription(url) {
 }
 
 // ================================================================
-// JOB BOARD — Sources, location filter, crawl
+// JOB BOARD
 // ================================================================
 
 const JOB_SOURCES = [
@@ -557,6 +602,53 @@ app.post('/api/applications/email-sync', requireAuth, (req, res) => {
   saveApplications(apps); res.json({ ok: true, changed });
 });
 
+// --- COVER LETTER PDF DOWNLOAD ---
+// Generates a properly formatted PDF directly from the stored cover letter text.
+// No Google Docs involved. Direct download from the browser.
+app.get('/api/applications/:id/cover-letter.pdf', requireAuth, (req, res) => {
+  const apps = loadApplications();
+  const appRecord = apps.find(a => a.id === req.params.id);
+  if (!appRecord) return res.status(404).json({ error: 'Application not found' });
+  if (!appRecord.cover_letter_text) return res.status(404).send('No cover letter has been generated for this application yet.');
+
+  let PDFDocument;
+  try { PDFDocument = require('pdfkit'); } catch(e) { return res.status(500).send('PDF generation not available. pdfkit not installed.'); }
+
+  const doc = new PDFDocument({ margin: 72, size: 'LETTER' });
+  const filename = `${appRecord.company.replace(/[^a-zA-Z0-9 ]/g, '')} Cover Letter.pdf`;
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.setHeader('Cache-Control', 'no-store');
+  doc.pipe(res);
+
+  // Header
+  doc.font('Helvetica-Bold').fontSize(13).text('EVERETT STEELE', { align: 'center' });
+  doc.moveDown(0.3);
+  doc.font('Helvetica').fontSize(10).text(
+    'everett.steele@gmail.com  |  678.899.3971  |  linkedin.com/in/everettsteeleATL  |  Atlanta, GA',
+    { align: 'center' }
+  );
+
+  doc.moveDown(1.5);
+
+  // Date
+  const dateStr = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  doc.font('Helvetica').fontSize(11).text(dateStr);
+  doc.moveDown(0.5);
+  doc.text(appRecord.company);
+  doc.moveDown(1.2);
+
+  // Letter body — split into paragraphs
+  const letterText = cleanCoverLetterText(appRecord.cover_letter_text);
+  const paragraphs = letterText.split(/\n{2,}/).map(p => p.replace(/\n/g, ' ').trim()).filter(p => p.length > 0);
+  paragraphs.forEach((para, i) => {
+    doc.font('Helvetica').fontSize(11).text(para, { align: 'justify', lineGap: 3 });
+    if (i < paragraphs.length - 1) doc.moveDown(1);
+  });
+
+  doc.end();
+});
+
 // --- BATCH PACKAGE BUILDER ---
 app.post('/api/applications/batch-packages', requireAuth, async (req, res) => {
   const webhookUrl = process.env.DRIVE_WEBHOOK_URL;
@@ -571,52 +663,52 @@ app.post('/api/applications/batch-packages', requireAuth, async (req, res) => {
 
   setImmediate(async () => {
     let built = 0, failed = 0;
-    for (const app of targets) {
+    for (const appRec of targets) {
       try {
-        console.log(`[batch-packages] Building package for ${app.company} — ${app.role}`);
+        console.log(`[batch-packages] Building package for ${appRec.company} — ${appRec.role}`);
 
-        const jdText = await fetchJobDescription(app.source_url);
+        const jdText = await fetchJobDescription(appRec.source_url);
         if (!jdText || jdText.length < 50) {
-          console.log(`[batch-packages] Could not fetch JD for ${app.company}`);
+          console.log(`[batch-packages] Could not fetch JD for ${appRec.company}`);
           failed++;
           continue;
         }
 
-        const coverLetter = await generateCoverLetterForApp(app, jdText);
+        const coverLetter = await generateCoverLetterForApp(appRec, jdText);
         if (!coverLetter || coverLetter.length < 50) {
-          console.log(`[batch-packages] Cover letter generation failed for ${app.company}`);
+          console.log(`[batch-packages] Cover letter generation failed for ${appRec.company}`);
           failed++;
           continue;
         }
 
         const response = await postToAppsScript(webhookUrl, {
-          folderName: `${app.company} - ${app.role}`,
+          folderName: `${appRec.company} - ${appRec.role}`,
           variant: 'operator',
           coverLetterText: coverLetter,
-          company: app.company,
-          role: app.role
+          company: appRec.company,
+          role: appRec.role
         });
         const text = await response.text();
         let result;
-        try { result = JSON.parse(text); } catch(e) { console.log(`[batch-packages] Non-JSON response for ${app.company}: ${text.slice(0,200)}`); failed++; continue; }
+        try { result = JSON.parse(text); } catch(e) { console.log(`[batch-packages] Non-JSON response for ${appRec.company}: ${text.slice(0,200)}`); failed++; continue; }
 
-        console.log(`[batch-packages] Apps Script response for ${app.company}:`, JSON.stringify(result));
+        console.log(`[batch-packages] Apps Script response for ${appRec.company}:`, JSON.stringify(result));
 
         if (!result.ok) {
-          console.log(`[batch-packages] Drive webhook failed for ${app.company}: ${result.error}`);
+          console.log(`[batch-packages] Drive webhook failed for ${appRec.company}: ${result.error}`);
           failed++;
           continue;
         }
 
         const folderUrl = result.folderUrl || result.driveUrl || result.url || result.folder_url || '';
         if (!folderUrl) {
-          console.log(`[batch-packages] No folder URL in response for ${app.company}. Keys: ${Object.keys(result).join(', ')}`);
+          console.log(`[batch-packages] No folder URL in response for ${appRec.company}. Keys: ${Object.keys(result).join(', ')}`);
           failed++;
           continue;
         }
 
         const allApps = loadApplications();
-        const idx = allApps.findIndex(a => a.id === app.id);
+        const idx = allApps.findIndex(a => a.id === appRec.id);
         if (idx >= 0) {
           const today = todayET();
           allApps[idx].drive_url = folderUrl;
@@ -625,14 +717,14 @@ app.post('/api/applications/batch-packages', requireAuth, async (req, res) => {
           allApps[idx].last_activity = today;
           (allApps[idx].activity = allApps[idx].activity||[]).push({ date: today, type: 'package_created', note: 'Auto-built: ' + folderUrl });
           saveApplications(allApps);
-          console.log(`[batch-packages] Saved drive_url for ${app.company}: ${folderUrl}`);
+          console.log(`[batch-packages] Saved drive_url for ${appRec.company}: ${folderUrl}`);
         }
 
         built++;
         await new Promise(r => setTimeout(r, 3000));
 
       } catch(err) {
-        console.error(`[batch-packages] Error for ${app.company}: ${err.message}`);
+        console.error(`[batch-packages] Error for ${appRec.company}: ${err.message}`);
         failed++;
       }
     }
