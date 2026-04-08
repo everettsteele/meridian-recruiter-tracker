@@ -1,2 +1,1 @@
-// HopeSpot index.js — one-line cache fix on /api/job-board
-// (full file preserved, only adding Cache-Control: no-store to job-board GET)
+placeholder removed
