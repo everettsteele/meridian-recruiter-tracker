@@ -1,4 +1,4 @@
-// HopeSpot apps.js v7.3 — Dashboard, Applications, Job Board, Networking
+// HopeSpot apps.js v7.4 — Dashboard, Applications, Job Board, Networking
 
 const APP_STATUSES = {
   queued:                { label: 'Queued',       color: '#7c3aed' },
@@ -11,15 +11,15 @@ const APP_STATUSES = {
   withdrawn:             { label: 'Withdrawn',    color: '#9ca3af' }
 };
 
-let _appsData = [], _netData = [], _showHiddenNet = false;
+var _appsData = [], _netData = [], _showHiddenNet = false;
 
 function _authH() {
-  const k = localStorage.getItem('hopespot_apikey');
+  var k = localStorage.getItem('hopespot_apikey');
   if (k) return { 'x-api-key': k, 'Content-Type': 'application/json' };
   return { 'x-auth-token': localStorage.getItem('hopespot_token') || '', 'Content-Type': 'application/json' };
 }
 function _authFH() {
-  const k = localStorage.getItem('hopespot_apikey');
+  var k = localStorage.getItem('hopespot_apikey');
   if (k) return { 'x-api-key': k };
   return { 'x-auth-token': localStorage.getItem('hopespot_token') || '' };
 }
@@ -259,7 +259,13 @@ async function _submitAddApp() {
 // ================================================================
 async function renderJobBoard() {
   var leads = [];
-  try { leads = await (await fetch('/api/job-board', { headers: _authFH() })).json(); } catch(e) {}
+  try {
+    var r = await fetch('/api/job-board', { headers: _authFH() });
+    if (r.status === 401) { document.getElementById('main-content').innerHTML = '<div class="empty">Auth error. Refresh the page.</div>'; return; }
+    leads = await r.json();
+    if (!Array.isArray(leads)) leads = [];
+  } catch(e) { leads = []; }
+
   var newLeads = leads.filter(function(l){return l.status==='new';});
   var reviewed = leads.filter(function(l){return l.status==='reviewed';});
   var srcColors = { jewishjobs:'#2563eb', execthread:'#7c3aed', csnetwork:'#d97706', idealist:'#16a34a', builtinatlanta:'#0891b2' };
@@ -291,7 +297,8 @@ async function renderJobBoard() {
 
   var newHtml = newLeads.length>0
     ? '<div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#374151;margin-bottom:8px">New ('+newLeads.length+') &mdash; Snag to add to Applications</div><div style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;margin-bottom:20px"><table style="width:100%;border-collapse:collapse"><thead><tr style="background:#f9fafb;border-bottom:1px solid #e5e7eb"><th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;color:#6b7280">Role</th><th style="padding:10px 14px;text-align:center;font-size:11px;font-weight:700;text-transform:uppercase;color:#6b7280">Fit</th><th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;color:#6b7280">Why</th><th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;color:#6b7280">Found</th><th style="padding:10px 14px"></th></tr></thead><tbody>'+newLeads.map(row).join('')+'</tbody></table></div>'
-    : '<div style="color:#9ca3af;font-size:13px;margin-bottom:20px;padding:40px;text-align:center;background:#fff;border:1px solid #e5e7eb;border-radius:10px">No new leads. Hit Crawl Now to run all sources.</div>';
+    : '<div style="color:#9ca3af;font-size:13px;margin-bottom:20px;padding:40px;text-align:center;background:#fff;border:1px solid #e5e7eb;border-radius:10px"><div style="margin-bottom:16px">No new leads. Run a crawl to pull from all five sources.</div><button onclick="triggerCrawl(this)" style="padding:8px 20px;background:#1f2d3d;color:#fff;border:none;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer">Crawl Now</button></div>';
+
   var revHtml = reviewed.length>0
     ? '<div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#9ca3af;margin-bottom:8px">Skipped ('+reviewed.length+')</div><div style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden;opacity:.5"><table style="width:100%;border-collapse:collapse"><tbody>'+reviewed.slice(0,8).map(row).join('')+'</tbody></table></div>'
     : '';
@@ -321,9 +328,15 @@ async function triggerCrawl(btn) {
   if (btn) { btn.textContent='Crawling...'; btn.disabled=true; }
   try {
     var r = await (await fetch('/api/job-board/crawl', { method:'POST', headers:_authFH() })).json();
-    if (typeof toast === 'function') toast((r.newLeads||0)+' new lead'+((r.newLeads||0)!==1?'s':'')+' found');
+    var newCount = r.newLeads || 0;
+    var stats = r.sourceStats || {};
+    var statSummary = Object.entries(stats).map(function(e){
+      var src=e[0],s=e[1];
+      return src+': '+s.added+' added'+(s.filteredByLocation?' ('+s.filteredByLocation+' filtered)':'');
+    }).join(' | ');
+    if (typeof toast === 'function') toast(newCount+' new lead'+(newCount!==1?'s':'')+' found' + (statSummary ? ' \u2014 '+statSummary : ''), 6000);
     await renderJobBoard();
-  } catch(e) { if (typeof toast === 'function') toast('Crawl failed \u2014 check console'); console.error('[crawl]', e); }
+  } catch(e) { if (typeof toast === 'function') toast('Crawl failed \u2014 check Railway logs'); console.error('[crawl]', e); }
   if (btn) { btn.textContent='Crawl Now'; btn.disabled=false; }
 }
 
@@ -519,6 +532,34 @@ async function showAddEventModal() {
 }
 
 // ================================================================
+// EXPLICIT WINDOW BINDINGS
+// Ensures all onclick handlers work regardless of execution context
+// ================================================================
+window.renderDashboard = renderDashboard;
+window.loadApps = loadApps;
+window.renderApplications = renderApplications;
+window._patchApp = _patchApp;
+window._deleteApp = _deleteApp;
+window._showAddAppModal = _showAddAppModal;
+window._closeAddAppModal = _closeAddAppModal;
+window._submitAddApp = _submitAddApp;
+window.renderJobBoard = renderJobBoard;
+window.updateLeadStatus = updateLeadStatus;
+window.snagLead = snagLead;
+window.triggerCrawl = triggerCrawl;
+window.renderNetworking = renderNetworking;
+window.renderNetworkingContacts = renderNetworkingContacts;
+window._toggleHiddenNet = _toggleHiddenNet;
+window.hideEvent = hideEvent;
+window.unhideEvent = unhideEvent;
+window.saveEventNotes = saveEventNotes;
+window.toggleNextStep = toggleNextStep;
+window.addNextStep = addNextStep;
+window.addContactToEvent = addContactToEvent;
+window.deleteEvent = deleteEvent;
+window.showAddEventModal = showAddEventModal;
+
+// ================================================================
 // MODAL + BADGE INJECTION
 // ================================================================
 (function inject() {
@@ -532,11 +573,11 @@ async function showAddEventModal() {
       document.body.appendChild(modal);
     }
     fetch('/api/job-board?status=new', { headers: _authFH() }).then(function(r){return r.json();}).then(function(leads) {
-      var b = document.getElementById('badge-jobboard'); if (b) b.textContent = leads.length;
+      var b = document.getElementById('badge-jobboard'); if (b) b.textContent = Array.isArray(leads) ? leads.length : 0;
     }).catch(function(){});
     fetch('/api/networking/events', { headers: _authFH() }).then(function(r){return r.json();}).then(function(events) {
       var today = new Date().toISOString().split('T')[0];
-      var overdue = events.filter(function(e){return !e.hidden;}).reduce(function(n,e){return n+(e.next_steps||[]).filter(function(ns){return !ns.done&&ns.due_date&&ns.due_date<=today;}).length;},0);
+      var overdue = (Array.isArray(events)?events:[]).filter(function(e){return !e.hidden;}).reduce(function(n,e){return n+(e.next_steps||[]).filter(function(ns){return !ns.done&&ns.due_date&&ns.due_date<=today;}).length;},0);
       var b = document.getElementById('badge-networking'); if (b) b.textContent = overdue||'';
     }).catch(function(){});
   }
