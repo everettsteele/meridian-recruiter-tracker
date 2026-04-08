@@ -241,7 +241,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <div class="modal-body">
       <div class="log-contact" id="log-contact-name"></div>
       <div class="log-email" id="log-contact-email"></div>
-      <textarea class="log-textarea" id="log-note" placeholder="Note (optional) — leave blank to just reset the follow-up date"></textarea>
+      <textarea class="log-textarea" id="log-note" placeholder="Note (optional) &#x2014; leave blank to just reset the follow-up date"></textarea>
       <div class="log-actions">
         <button class="log-cancel" onclick="closeLogModal()">Cancel</button>
         <button class="log-confirm" onclick="submitLog()">Log &amp; Reset Date</button>
@@ -261,26 +261,26 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     </div>
     <div class="modal-body">
       <div class="cl-version">
-        <div class="cl-ver-header"><span class="cl-ver-num current">v5.2</span><span class="cl-ver-label">Drive Integration + Job Board</span><span class="cl-ver-date">Apr 8, 2026</span></div>
+        <div class="cl-ver-header"><span class="cl-ver-num current">v6.0</span><span class="cl-ver-label">Multi-Source Job Board + Snag + Combined Dashboard</span><span class="cl-ver-date">Apr 8, 2026</span></div>
+        <ul class="cl-changes">
+          <li>5 job board sources: JewishJobs, ExecThread, CoS Network, Idealist, Built In ATL<span class="cl-tag cl-tag-new">new</span></li>
+          <li>Snag button moves lead from Job Board into Applications queue as Queued<span class="cl-tag cl-tag-new">new</span></li>
+          <li>Queued status added to application pipeline (replaces Applied as default)<span class="cl-tag cl-tag-new">new</span></li>
+          <li>Dashboard now shows outreach + application pipeline in a single combined view<span class="cl-tag cl-tag-new">new</span></li>
+          <li>Metrics tab removed (merged into Dashboard)<span class="cl-tag cl-tag-fix">fix</span></li>
+        </ul>
+      </div>
+      <div class="cl-version">
+        <div class="cl-ver-header"><span class="cl-ver-num">v5.2</span><span class="cl-ver-label">Drive Integration + Job Board</span><span class="cl-ver-date">Apr 8, 2026</span></div>
         <ul class="cl-changes">
           <li>Google Drive package creation from application record<span class="cl-tag cl-tag-new">new</span></li>
-          <li>JewishJobs.com crawl with fit scoring, daily at 6 AM ET<span class="cl-tag cl-tag-new">new</span></li>
-          <li>Job Board tab with Crawl Now button<span class="cl-tag cl-tag-new">new</span></li>
-          <li>Fixed login SyntaxError (invalid escape sequence)<span class="cl-tag cl-tag-fix">fix</span></li>
-          <li>Boot seed for 10 applications on fresh deploy<span class="cl-tag cl-tag-infra">infra</span></li>
+          <li>JewishJobs crawl, Job Board tab, login SyntaxError fix<span class="cl-tag cl-tag-fix">fix</span></li>
         </ul>
       </div>
       <div class="cl-version">
-        <div class="cl-ver-header"><span class="cl-ver-num">v4.0</span><span class="cl-ver-label">Application Tracking + Metrics</span><span class="cl-ver-date">Apr 8, 2026</span></div>
+        <div class="cl-ver-header"><span class="cl-ver-num">v4.0</span><span class="cl-ver-label">Application Tracking</span><span class="cl-ver-date">Apr 8, 2026</span></div>
         <ul class="cl-changes">
-          <li>Applications tab: full CRUD, status dropdown, activity log, follow-up tracking<span class="cl-tag cl-tag-new">new</span></li>
-          <li>Metrics tab: pipeline funnel, weekly volume chart, outreach summary<span class="cl-tag cl-tag-new">new</span></li>
-        </ul>
-      </div>
-      <div class="cl-version">
-        <div class="cl-ver-header"><span class="cl-ver-num">v3.6</span><span class="cl-ver-label">Mark Drafts Sent</span><span class="cl-ver-date">Apr 7, 2026</span></div>
-        <ul class="cl-changes">
-          <li>Green Mark Drafts Sent button in topbar when drafts are queued<span class="cl-tag cl-tag-new">new</span></li>
+          <li>Applications tab, Metrics tab, email sync endpoint<span class="cl-tag cl-tag-new">new</span></li>
         </ul>
       </div>
     </div>
@@ -343,10 +343,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
         Applications
         <span class="nav-badge blue" id="badge-applications">0</span>
       </div>
-      <div class="nav-item" id="nav-metrics" onclick="switchTab('metrics');closeSidebar()">
-        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-        Metrics
-      </div>
       <div class="nav-item" id="nav-jobboard" onclick="switchTab('jobboard');closeSidebar()">
         <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
         Job Board
@@ -355,7 +351,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     </div>
     <div class="sidebar-footer">
       <span>everett.steele@gmail.com</span>
-      <span class="version-badge" onclick="showChangelog()">v5.2</span>
+      <span class="version-badge" onclick="showChangelog()">v6.0</span>
     </div>
   </nav>
 
@@ -395,7 +391,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 const STORAGE_KEY='hopespot_token',API_KEY_STORE='hopespot_apikey';
 let TOKEN='',API_KEY_MODE=false,DATA=[],CEOs=[],VCs=[],STATS=null,DUE=[],FILTER='all',TAB='queue',SECTOR_FILTER='all';
 const TODAY=new Date().toISOString().split('T')[0];
-const TITLES={queue:['Morning Queue',"Today's outreach and follow-ups"],dashboard:['Dashboard','Outreach performance and activity'],recruiters:['Recruiters','Executive search firms'],ceos:['Direct CEO / Network','Referral asks and warm network contacts'],vcs:['VC Firms','Portfolio COO and operating partner outreach'],applications:['Applications','Job application pipeline and tracking'],metrics:['Metrics','Funnel, response rates, and pipeline analytics'],jobboard:['Job Board','JewishJobs.com \u00b7 Senior operator roles']};
+const TITLES={queue:['Morning Queue',"Today's outreach and follow-ups"],dashboard:['Dashboard','Outreach and application pipeline'],recruiters:['Recruiters','Executive search firms'],ceos:['Direct CEO / Network','Referral asks and warm network contacts'],vcs:['VC Firms','Portfolio COO and operating partner outreach'],applications:['Applications','Job application pipeline'],jobboard:['Job Board','JewishJobs \u00b7 ExecThread \u00b7 CoS Network \u00b7 Idealist \u00b7 Built In ATL']};
 const SECTOR_LABELS={healthtech:'Healthtech',revenue_gtm:'Revenue/GTM',analytics:'Analytics',fintech:'FinTech',vertical_saas:'Vertical SaaS',general:'General SaaS',network:'Network'};
 
 let _logPending=null;
@@ -526,14 +522,20 @@ function updateBadges(){
 
 function switchTab(t){
   TAB=t;FILTER='all';SECTOR_FILTER='all';
-  ['queue','dashboard','recruiters','ceos','vcs','applications','metrics','jobboard'].forEach(x=>document.getElementById('nav-'+x)?.classList.toggle('active',x===t));
+  ['queue','dashboard','recruiters','ceos','vcs','applications','jobboard'].forEach(x=>document.getElementById('nav-'+x)?.classList.toggle('active',x===t));
   const [title,sub]=TITLES[t]||['',''];
   document.getElementById('topbar-title').textContent=title;
   document.getElementById('topbar-sub').textContent=sub;
   const mt=document.getElementById('mobile-title');if(mt)mt.textContent=title;
   renderCurrent();
 }
-function renderCurrent(){if(TAB==='queue')renderQueue();else if(TAB==='dashboard')renderDashboard();else if(TAB==='applications')loadApps();else if(TAB==='metrics')renderMetrics();else if(TAB==='jobboard'){if(typeof renderJobBoard==='function')renderJobBoard();else document.getElementById('main-content').innerHTML='<div class="empty">Loading Job Board...</div>';}else renderList();}
+function renderCurrent(){
+  if(TAB==='queue')renderQueue();
+  else if(TAB==='dashboard')renderDashboard();
+  else if(TAB==='applications')loadApps();
+  else if(TAB==='jobboard'){if(typeof renderJobBoard==='function')renderJobBoard();else document.getElementById('main-content').innerHTML='<div class="empty">Loading...</div>';}
+  else renderList();
+}
 
 function renderQueue(){
   const all=allItems();
@@ -571,19 +573,39 @@ async function markSent(endpoint,id,btn){
   await loadAll();
 }
 
-function renderDashboard(){
+// Combined Dashboard: outreach + application pipeline in one view
+async function renderDashboard(){
+  // Fetch apps alongside existing outreach stats
+  let apps=[];
+  try{apps=await(await fetch('/api/applications',{headers:authFetchHeaders()})).json();}catch(e){}
   if(!STATS){document.getElementById('main-content').innerHTML='<div class="empty">Loading...</div>';return;}
   const {segments,daily,totals}=STATS;
   const overallRate=totals.contacted>0?Math.round((totals.inConversation/totals.contacted)*100):0;
   const maxD=daily.length?Math.max(...daily.map(d=>d.total),1):1;
-  const CHART_H=140;
+  const CHART_H=120;
   const bc=['#3B82F6','#F97316','#10B981'];
-  let html='<div class="stats"><div class="stat"><div class="stat-label">Outreach</div><div class="stat-val">'+totals.contacted+'</div><div class="stat-sub">sent</div></div><div class="stat"><div class="stat-label">Replies</div><div class="stat-val">'+totals.inConversation+'</div><div class="stat-sub">in convo</div></div><div class="stat"><div class="stat-label">Rate</div><div class="stat-val">'+overallRate+'%</div></div><div class="stat"><div class="stat-label">Due</div><div class="stat-val" style="color:#EF4444">'+DUE.length+'</div></div><div class="stat"><div class="stat-label">Bounced</div><div class="stat-val">'+totals.bounced+'</div></div></div>';
+  // App pipeline stats
+  const appQueued=apps.filter(a=>a.status==='queued').length;
+  const appApplied=apps.filter(a=>a.status==='applied').length;
+  const appConfirmed=apps.filter(a=>['confirmation_received','interviewing','offer'].includes(a.status)).length;
+  const appInterview=apps.filter(a=>['interviewing','offer'].includes(a.status)).length;
+  const appOffer=apps.filter(a=>a.status==='offer').length;
+  // Top row: outreach + pipeline side by side
+  let html='<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px">';
+  html+='<div class="dash-card"><div class="dash-card-title">Outreach</div><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center">';
+  [[totals.contacted,'Sent','#1F2D3D'],[totals.inConversation,'Replies','#10B981'],[overallRate+'%','Reply Rate',overallRate>5?'#10B981':'#6B7280'],[DUE.length,'Due Today',DUE.length>3?'#EF4444':'#9CA3AF']].forEach(([v,l,c])=>{html+='<div><div style="font-size:26px;font-weight:700;color:'+c+'">'+v+'</div><div style="font-size:10px;color:#9CA3AF;text-transform:uppercase;letter-spacing:.04em;margin-top:2px">'+l+'</div></div>';});
+  html+='</div></div>';
+  html+='<div class="dash-card"><div class="dash-card-title">Applications Pipeline</div><div style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px;text-align:center">';
+  [[appQueued,'Queued','#7c3aed'],[appApplied,'Applied','#6b7280'],[appConfirmed,'Confirmed','#2563eb'],[appInterview,'Interview','#d97706'],[appOffer,'Offer','#16a34a']].forEach(([v,l,c])=>{html+='<div><div style="font-size:20px;font-weight:700;color:'+c+'">'+v+'</div><div style="font-size:9px;color:#9CA3AF;text-transform:uppercase;letter-spacing:.03em;margin-top:2px">'+l+'</div></div>';});
+  html+='</div></div>';
+  html+='</div>';
+  // Outreach pillar breakdown
   html+='<div class="dash-grid">';
   segments.forEach((s,i)=>{const pct=s.contacted>0?Math.round((s.conv/s.contacted)*100):0;html+='<div class="dash-card"><div class="dash-card-title">'+s.label+'</div><div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:14px"><div><div class="big-num">'+s.contacted+'</div><div class="big-sub">contacted</div></div><div class="rate-circle" style="border-color:'+bc[i]+'"><div class="rate-pct">'+pct+'%</div><div class="rate-lbl">replies</div></div></div><div class="seg-row"><span class="seg-lbl">In conversation</span><span class="seg-val">'+s.conv+'</span></div><div class="seg-row"><span class="seg-lbl">Drafts pending</span><span class="seg-val" style="color:#8B5CF6">'+s.drafts+'</span></div><div class="seg-row"><span class="seg-lbl">Bounced</span><span class="seg-val" style="color:#F59E0B">'+s.bounced+'</span></div></div>';});
   html+='</div>';
+  // Daily chart + SLA + Template
   let chartInner='';
-  if(!daily.length){chartInner='<div style="color:#9CA3AF;font-size:13px;padding-top:12px">No activity yet.</div>';}
+  if(!daily.length){chartInner='<div style="color:#9CA3AF;font-size:13px;padding-top:12px">No outreach activity yet.</div>';}
   else{
     let bars='';
     daily.forEach(d=>{
@@ -598,23 +620,14 @@ function renderDashboard(){
   }
   const sla=STATS.slaStats||{target:10,dailyAvg7:0,onTrack:false};
   const tmplStats=STATS.templateStats||[];
-  let slaHtml='<div class="dash-card"><div class="dash-card-title">SLA Compliance</div>';
-  slaHtml+='<div style="display:flex;align-items:flex-end;gap:8px;margin-bottom:6px"><div class="sla-big '+(sla.onTrack?'sla-ok':'sla-miss')+'">'+sla.dailyAvg7+'</div><div style="font-size:13px;color:#9CA3AF;padding-bottom:5px">/ '+sla.target+' target</div></div>';
-  slaHtml+='<div style="font-size:11px;color:'+(sla.onTrack?'#10B981':'#EF4444')+'">'+( sla.onTrack?'On track':'Below target')+'&nbsp;&#8212;&nbsp;7-day rolling avg</div></div>';
+  let slaHtml='<div class="dash-card"><div class="dash-card-title">SLA Compliance</div><div style="display:flex;align-items:flex-end;gap:8px;margin-bottom:6px"><div class="sla-big '+(sla.onTrack?'sla-ok':'sla-miss')+'">'+sla.dailyAvg7+'</div><div style="font-size:13px;color:#9CA3AF;padding-bottom:5px">/ '+sla.target+' target</div></div><div style="font-size:11px;color:'+(sla.onTrack?'#10B981':'#EF4444')+'">'+( sla.onTrack?'On track':'Below target')+'&nbsp;&#8212;&nbsp;7-day rolling avg</div></div>';
   let tmplHtml='<div class="dash-card"><div class="dash-card-title">Template A/B</div>';
   if(!tmplStats.length){tmplHtml+='<div style="color:#9CA3AF;font-size:12px">No data yet.</div>';}
   else{tmplHtml+='<table class="perf-table"><tr><th>Version</th><th>Sent</th><th>Replies</th><th>Rate</th></tr>'+tmplStats.map(t=>'<tr><td><span class="tv-badge tv-'+t.version+'">'+t.version+'</span></td><td>'+t.sent+'</td><td class="hl">'+t.replies+'</td><td>'+t.replyRate+'%</td></tr>').join('')+'</table>';}
   tmplHtml+='</div>';
-  html+='<div class="dash-main-row">';
-  html+='<div class="dash-card"><div class="dash-card-title">Daily Outreach Activity</div>'+chartInner+'</div>';
-  html+='<div class="right-stack">'+slaHtml+tmplHtml+'</div>';
-  html+='</div>';
+  html+='<div class="dash-main-row"><div class="dash-card"><div class="dash-card-title">Daily Outreach Activity</div>'+chartInner+'</div><div class="right-stack">'+slaHtml+tmplHtml+'</div></div>';
   const secStats=STATS.sectorStats||[];
-  if(secStats.length){
-    html+='<div class="dash-card" style="margin-bottom:16px"><div class="dash-card-title">CEO Outreach by Sector</div>';
-    html+='<table class="perf-table"><tr><th>Sector</th><th>Sent</th><th>Replies</th><th>Rate</th></tr>'+secStats.map(s=>'<tr><td><span class="sector-badge sector-'+s.sector+'">'+s.label+'</span></td><td>'+s.sent+'</td><td class="hl">'+s.replies+'</td><td>'+s.replyRate+'%</td></tr>').join('')+'</table>';
-    html+='</div>';
-  }
+  if(secStats.length){html+='<div class="dash-card" style="margin-bottom:16px"><div class="dash-card-title">CEO Outreach by Sector</div><table class="perf-table"><tr><th>Sector</th><th>Sent</th><th>Replies</th><th>Rate</th></tr>'+secStats.map(s=>'<tr><td><span class="sector-badge sector-'+s.sector+'">'+s.label+'</span></td><td>'+s.sent+'</td><td class="hl">'+s.replies+'</td><td>'+s.replyRate+'%</td></tr>').join('')+'</table></div>';}
   document.getElementById('main-content').innerHTML=html;
 }
 
@@ -631,7 +644,7 @@ function renderApplications(){
   const today=new Date().toISOString().split('T')[0];
   const counts={};
   appsData.forEach(a=>{counts[a.status]=(counts[a.status]||0)+1;});
-  const APP_ST={applied:{label:'Applied',color:'#6b7280'},confirmation_received:{label:'Confirmed',color:'#2563eb'},interviewing:{label:'Interviewing',color:'#d97706'},offer:{label:'Offer',color:'#16a34a'},rejected:{label:'Rejected',color:'#dc2626'},no_response:{label:'No Response',color:'#9ca3af'},withdrawn:{label:'Withdrawn',color:'#9ca3af'}};
+  const APP_ST={queued:{label:'Queued',color:'#7c3aed'},applied:{label:'Applied',color:'#6b7280'},confirmation_received:{label:'Confirmed',color:'#2563eb'},interviewing:{label:'Interviewing',color:'#d97706'},offer:{label:'Offer',color:'#16a34a'},rejected:{label:'Rejected',color:'#dc2626'},no_response:{label:'No Response',color:'#9ca3af'},withdrawn:{label:'Withdrawn',color:'#9ca3af'}};
   const summary=Object.entries(APP_ST).filter(([k])=>counts[k]).map(([k,v])=>'<span style="padding:4px 10px;border-radius:12px;font-size:12px;font-weight:600;background:'+v.color+'18;color:'+v.color+';border:1px solid '+v.color+'30">'+counts[k]+' '+v.label+'</span>').join('');
   const rows=appsData.map(app=>{
     const st=APP_ST[app.status]||{label:app.status,color:'#6b7280'};
@@ -662,7 +675,7 @@ function renderApplications(){
     +'<thead><tr style="border-bottom:2px solid #E5E7EB">'
     +'<th style="text-align:left;padding:8px 0;font-size:10px;color:#9CA3AF;font-weight:700;text-transform:uppercase;letter-spacing:.05em">Company</th>'
     +'<th style="text-align:left;padding:8px;font-size:10px;color:#9CA3AF;font-weight:700;text-transform:uppercase;letter-spacing:.05em">Role</th>'
-    +'<th style="text-align:left;padding:8px;font-size:10px;color:#9CA3AF;font-weight:700;text-transform:uppercase;letter-spacing:.05em">Applied</th>'
+    +'<th style="text-align:left;padding:8px;font-size:10px;color:#9CA3AF;font-weight:700;text-transform:uppercase;letter-spacing:.05em">Added</th>'
     +'<th style="text-align:left;padding:8px;font-size:10px;color:#9CA3AF;font-weight:700;text-transform:uppercase;letter-spacing:.05em">Status</th>'
     +'<th style="text-align:left;padding:8px;font-size:10px;color:#9CA3AF;font-weight:700;text-transform:uppercase;letter-spacing:.05em">Follow-up</th>'
     +'<th style="text-align:left;padding:8px;font-size:10px;color:#9CA3AF;font-weight:700;text-transform:uppercase;letter-spacing:.05em">Activity</th>'
@@ -717,48 +730,6 @@ async function submitAddApp(){
   await loadApps();
 }
 // --- END APPLICATIONS ---
-
-// --- METRICS ---
-async function renderMetrics(){
-  let apps=[],stats=null;
-  try{
-    const[ar,sr]=await Promise.all([fetch('/api/applications',{headers:authFetchHeaders()}),fetch('/api/stats',{headers:authFetchHeaders()})]);
-    apps=await ar.json();stats=await sr.json();
-  }catch(e){}
-  const total=apps.length;
-  const confirmed=apps.filter(a=>['confirmation_received','interviewing','offer'].includes(a.status)).length;
-  const interviewing=apps.filter(a=>['interviewing','offer'].includes(a.status)).length;
-  const offers=apps.filter(a=>a.status==='offer').length;
-  const rejected=apps.filter(a=>a.status==='rejected').length;
-  const pending=apps.filter(a=>a.status==='applied').length;
-  const cr=total>0?Math.round((confirmed/total)*100):0;
-  const ir=total>0?Math.round((interviewing/total)*100):0;
-  const or_=total>0?Math.round((offers/total)*100):0;
-  const byWeek={};
-  apps.forEach(a=>{
-    if(!a.applied_date)return;
-    const d=new Date(a.applied_date+'T12:00:00Z');
-    const day=d.getDay();const mon=new Date(d);mon.setDate(d.getDate()-(day===0?6:day-1));
-    const wk=mon.toISOString().split('T')[0];byWeek[wk]=(byWeek[wk]||0)+1;
-  });
-  const weeks=Object.entries(byWeek).sort(([a],[b])=>a.localeCompare(b));
-  const maxWk=weeks.length?Math.max(...weeks.map(([,v])=>v)):1;
-  const mc=(v,label,color,sub)=>'<div class="stat"><div class="stat-label">'+label+'</div><div class="stat-val" style="color:'+color+'">'+v+'</div>'+(sub?'<div class="stat-sub">'+sub+'</div>':'')+'</div>';
-  const fb=(label,val,tot)=>{const pct=tot>0?Math.round((val/tot)*100):0;return'<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span style="color:#6B7280;font-weight:500">'+label+'</span><span style="color:#9CA3AF">'+val+' ('+pct+'%)</span></div><div style="height:8px;background:#E5E7EB;border-radius:4px"><div style="height:100%;background:#3B82F6;border-radius:4px;width:'+pct+'%"></div></div></div>';}
-  const weekBars=weeks.map(([wk,n])=>{const h=Math.max(4,Math.round((n/maxWk)*72));return'<div style="display:flex;flex-direction:column;align-items:center;gap:4px;flex:1;min-width:28px"><span style="font-size:10px;font-weight:600;color:#1F2D3D">'+n+'</span><div style="width:100%;background:#3B82F6;height:'+h+'px;border-radius:3px 3px 0 0"></div><span style="font-size:9px;color:#9CA3AF;white-space:nowrap">'+wk.slice(5)+'</span></div>';}).join('');
-  const outreachHtml=stats?stats.segments.map(s=>'<div class="stat"><div class="stat-label">'+s.label+'</div><div class="stat-val">'+s.contacted+'</div><div class="stat-sub">'+s.conv+' replies</div></div>').join(''):'';
-  document.getElementById('main-content').innerHTML=
-    '<div class="queue-title" style="margin-bottom:4px">Metrics</div>'
-    +'<div class="queue-sub" style="margin-bottom:20px">Application pipeline and outreach performance</div>'
-    +'<div style="margin-bottom:8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#9CA3AF">Applications</div>'
-    +'<div class="stats" style="margin-bottom:24px">'+mc(total,'Total','#1F2D3D')+mc(confirmed,'Confirmed','#2563eb',cr+'%')+mc(interviewing,'Interviewing','#d97706',ir+'%')+mc(offers,'Offers','#16a34a',or_+'%')+mc(rejected,'Rejected','#EF4444')+mc(pending,'Pending','#6B7280')+'</div>'
-    +'<div class="dash-main-row" style="margin-bottom:24px">'
-    +'<div class="dash-card"><div class="dash-card-title">Pipeline Funnel</div>'+fb('Submitted',total,total)+fb('Confirmed',confirmed,total)+fb('Interviewing',interviewing,total)+fb('Offer',offers,total)+'</div>'
-    +'<div class="dash-card"><div class="dash-card-title">Weekly Applications</div>'+(weeks.length?'<div style="display:flex;align-items:flex-end;gap:5px;height:92px;padding-top:20px">'+weekBars+'</div>':'<div style="color:#9CA3AF;font-size:12px">No data yet.</div>')+'</div>'
-    +'</div>'
-    +(stats?'<div style="margin-bottom:8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#9CA3AF">Outreach</div><div class="stats">'+outreachHtml+'</div>':'');
-}
-// --- END METRICS ---
 
 function currentData(){return TAB==='ceos'?CEOs:TAB==='vcs'?VCs:DATA;}
 function nameField(item){return TAB==='ceos'?item.company:TAB==='vcs'?item.firm:item.name;}
