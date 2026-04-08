@@ -217,8 +217,9 @@ function renderApplications() {
       +'</td></tr>';
   }).join('');
   var needsPkgCount = _appsData.filter(function(a){return a.status==='queued'&&!a.drive_url;}).length;
+  // Button label is intentionally generic — the count is shown in the subtitle above
   var batchBtn = needsPkgCount > 0
-    ? '<button onclick="_batchBuildPackages(this)" style="padding:9px 18px;background:#16a34a;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;margin-left:10px">Build ' + needsPkgCount + ' Package' + (needsPkgCount>1?'s':'') + '</button>'
+    ? '<button onclick="_batchBuildPackages(this)" style="padding:9px 18px;background:#16a34a;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;margin-left:10px">Build Queued Packages</button>'
     : '';
   document.getElementById('main-content').innerHTML =
     '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px"><div><div style="font-size:22px;font-weight:700">Applications</div><div style="font-size:13px;color:#9ca3af;margin-top:2px">'+_appsData.length+' tracked &nbsp;&middot;&nbsp; '+needsPkgCount+' need a package</div></div><div style="display:flex;align-items:center">'+batchBtn+'<button onclick="_showAddAppModal()" style="padding:9px 18px;background:#f97316;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;margin-left:10px">+ Log Application</button></div></div>'
@@ -229,19 +230,20 @@ function renderApplications() {
 }
 
 async function _batchBuildPackages(btn) {
-  if (!confirm('Build Drive packages for all queued applications? This will generate cover letters using AI and create Drive folders. Takes 1-2 minutes.')) return;
+  var needsCount = _appsData.filter(function(a){return a.status==='queued'&&!a.drive_url;}).length;
+  if (!confirm('Build Drive packages for ' + needsCount + ' queued application' + (needsCount!==1?'s':'') + '? AI will generate cover letters and create Drive folders. Takes 1-2 minutes.')) return;
   if (btn) { btn.textContent = 'Building...'; btn.disabled = true; }
   try {
     var r = await (await fetch('/api/applications/batch-packages', { method: 'POST', headers: _authFH() })).json();
     if (r.ok) {
-      if (typeof toast === 'function') toast(r.message || 'Packages building in background. Refresh in 2 minutes.', 6000);
+      if (typeof toast === 'function') toast(r.message || 'Packages building in background. Check back in 2 minutes.', 6000);
     } else {
       if (typeof toast === 'function') toast('Error: ' + (r.error || 'Unknown error'));
     }
   } catch(e) {
     if (typeof toast === 'function') toast('Request failed');
   }
-  if (btn) { btn.textContent = 'Build Packages'; btn.disabled = false; }
+  if (btn) { btn.textContent = 'Build Queued Packages'; btn.disabled = false; }
   setTimeout(function() { loadApps(); }, 30000);
 }
 
@@ -316,7 +318,6 @@ async function renderJobBoard() {
       +'</tr>';
   }
 
-  // FIX: overflow-x:auto instead of overflow:hidden for mobile scroll
   var tableWrap = 'style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;overflow-x:auto;-webkit-overflow-scrolling:touch;margin-bottom:20px"';
 
   var newHtml = newLeads.length>0
