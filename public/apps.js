@@ -1,4 +1,4 @@
-// HopeSpot apps.js v7.6 — Dashboard, Applications, Job Board, Networking
+// HopeSpot apps.js v7.8
 
 const APP_STATUSES = {
   queued:                { label: 'Queued',       color: '#7c3aed' },
@@ -13,9 +13,9 @@ const APP_STATUSES = {
 
 var _appsData = [], _netData = [], _showHiddenNet = false;
 
-// Tracks lead IDs that have been skipped client-side but whose server PATCH
-// may not have completed yet. Consulted after every renderJobBoard() to ensure
-// a concurrent snag/re-render can't restore a lead the user already dismissed.
+// _skippedLeadIds: IDs skipped this session, not yet confirmed persisted.
+// Kept even after PATCH responds so _purgeSkippedRows() can clean up any
+// re-render that races the server write.
 var _skippedLeadIds = new Set();
 
 function _authH() {
@@ -35,8 +35,26 @@ function _authToken() {
   return 'token=' + encodeURIComponent(t);
 }
 
+// Flush all pending skips to the server in one atomic batch write.
+// Called before any snag or re-render that needs consistent server state.
+async function _flushSkips() {
+  if (_skippedLeadIds.size === 0) return;
+  var ids = Array.from(_skippedLeadIds);
+  var updates = ids.map(function(id) { return { id: id, status: 'reviewed' }; });
+  try {
+    var resp = await fetch('/api/job-board/batch-update', {
+      method: 'POST',
+      headers: _authH(),
+      body: JSON.stringify({ updates: updates })
+    });
+    if (resp.ok) {
+      ids.forEach(function(id) { _skippedLeadIds.delete(id); });
+    }
+  } catch(e) {}
+}
+
 // ================================================================
-// RICH COMBINED DASHBOARD
+// DASHBOARD
 // ================================================================
 async function renderDashboard() {
   var apps = [], net = [];
@@ -305,10 +323,6 @@ async function _submitAddApp() {
 // ================================================================
 // JOB BOARD
 // ================================================================
-
-// After rendering, remove any rows belonging to IDs in _skippedLeadIds.
-// This prevents a concurrent snag/re-render from restoring a lead whose
-// skip PATCH hasn't persisted to the server yet.
 function _purgeSkippedRows() {
   _skippedLeadIds.forEach(function(id) {
     var row = document.querySelector('tr[data-lead-id="'+id+'"]');
@@ -351,7 +365,6 @@ async function renderJobBoard() {
   }
 
   var tableWrap = 'style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;overflow-x:auto;-webkit-overflow-scrolling:touch;margin-bottom:20px"';
-
   var newHtml = newLeads.length>0
     ? '<div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#374151;margin-bottom:8px">New ('+newLeads.length+') &mdash; Snag to add to Applications</div><div '+tableWrap+'><table style="width:100%;min-width:480px;border-collapse:collapse"><thead><tr style="background:#f9fafb;border-bottom:1px solid #e5e7eb"><th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;color:#6b7280">Role</th><th style="padding:10px 14px;text-align:center;font-size:11px;font-weight:700;text-transform:uppercase;color:#6b7280">Fit</th><th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;color:#6b7280">Why</th><th style="padding:10px 14px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;color:#6b7280">Found</th><th style="padding:10px 14px"></th></tr></thead><tbody>'+newLeads.map(row).join('')+'</tbody></table></div>'
     : '<div style="color:#9ca3af;font-size:13px;margin-bottom:20px;padding:40px;text-align:center;background:#fff;border:1px solid #e5e7eb;border-radius:10px"><div style="margin-bottom:16px">No new leads. Run a crawl to pull from all five sources.</div><button onclick="triggerCrawl(this)" style="padding:8px 20px;background:#1f2d3d;color:#fff;border:none;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer">Crawl Now</button></div>';
@@ -363,43 +376,26 @@ async function renderJobBoard() {
 
   var badge = document.getElementById('badge-jobboard');
   if (badge) badge.textContent = newLeads.length;
-
-  // After rendering, immediately remove any rows whose skip PATCH is still pending.
   _purgeSkippedRows();
-}
-
-// Skip fires PATCH in background. No full re-render.
-// _skippedLeadIds ensures the lead stays gone even if snag triggers a re-render
-// before the PATCH completes.
-async function updateLeadStatus(id, status) {
-  var resp;
-  try {
-    resp = await fetch('/api/job-board/'+id, { method:'PATCH', headers:_authH(), body:JSON.stringify({ status:status }) });
-  } catch(e) {
-    if (typeof toast === 'function') toast('Skip failed (network)');
-    return;
-  }
-  if (!resp || !resp.ok) {
-    if (typeof toast === 'function') toast('Skip failed (HTTP ' + (resp ? resp.status : '?') + ')');
-    return;
-  }
-  // PATCH persisted. Remove from pending set and decrement badge.
-  _skippedLeadIds.delete(id);
-  var badge = document.getElementById('badge-jobboard');
-  if (badge) {
-    var n = parseInt(badge.textContent) || 0;
-    if (n > 0) badge.textContent = n - 1;
-  }
-  if (typeof toast === 'function') toast('Skipped');
 }
 
 async function snagLead(leadId, btn) {
   if (btn) { btn.textContent = 'Snagging...'; btn.disabled = true; }
+  // Flush all pending skips before snagging so the re-render sees clean server state.
+  await _flushSkips();
   try {
     var r = await (await fetch('/api/job-board/snag', { method:'POST', headers:_authH(), body:JSON.stringify({ lead_id:leadId }) })).json();
-    if (r.ok) { if (typeof toast === 'function') toast('Snagged \u2014 added to Applications'); await renderJobBoard(); }
-    else { if (typeof toast === 'function') toast('Snag failed: '+(r.error||'unknown')); if (btn) { btn.textContent='Snag'; btn.disabled=false; } }
-  } catch(e) { if (typeof toast === 'function') toast('Snag failed'); if (btn) { btn.textContent='Snag'; btn.disabled=false; } }
+    if (r.ok) {
+      if (typeof toast === 'function') toast('Snagged \u2014 added to Applications');
+      await renderJobBoard();
+    } else {
+      if (typeof toast === 'function') toast('Snag failed: '+(r.error||'unknown'));
+      if (btn) { btn.textContent='Snag'; btn.disabled=false; }
+    }
+  } catch(e) {
+    if (typeof toast === 'function') toast('Snag failed');
+    if (btn) { btn.textContent='Snag'; btn.disabled=false; }
+  }
 }
 
 async function triggerCrawl(btn) {
@@ -519,10 +515,7 @@ async function renderNetworking() {
   document.getElementById('main-content').innerHTML = html;
 }
 
-function _toggleHiddenNet() {
-  _showHiddenNet = !_showHiddenNet;
-  renderNetworking();
-}
+function _toggleHiddenNet() { _showHiddenNet = !_showHiddenNet; renderNetworking(); }
 async function hideEvent(id) {
   try { await fetch('/api/networking/events/'+id, { method:'PATCH', headers:_authH(), body:JSON.stringify({ hidden:true }) }); } catch(e) {}
   if (typeof toast === 'function') toast('Event hidden \u2014 excluded from stats');
@@ -604,7 +597,7 @@ async function showAddEventModal() {
 }
 
 // ================================================================
-// EXPLICIT WINDOW BINDINGS
+// WINDOW BINDINGS
 // ================================================================
 window.renderDashboard = renderDashboard;
 window.loadApps = loadApps;
@@ -617,7 +610,6 @@ window._closeAddAppModal = _closeAddAppModal;
 window._submitAddApp = _submitAddApp;
 window._batchBuildPackages = _batchBuildPackages;
 window.renderJobBoard = renderJobBoard;
-window.updateLeadStatus = updateLeadStatus;
 window.snagLead = snagLead;
 window.triggerCrawl = triggerCrawl;
 window.renderNetworking = renderNetworking;
@@ -634,6 +626,9 @@ window.showAddEventModal = showAddEventModal;
 
 // ================================================================
 // EVENT DELEGATION
+// Skip: row removed from DOM immediately, ID added to _skippedLeadIds.
+// The batch flush in snagLead ensures all skips are persisted before
+// the snag re-render fetches fresh data from the server.
 // ================================================================
 document.addEventListener('click', function(e) {
   var target = e.target;
@@ -643,12 +638,12 @@ document.addEventListener('click', function(e) {
     e.stopPropagation();
     var leadId = target.getAttribute('data-lead-id');
     if (leadId) {
-      // Add to pending-skip set BEFORE removing the row.
-      // This way _purgeSkippedRows() can re-remove it if snag triggers a re-render.
       _skippedLeadIds.add(leadId);
       var row = target.closest('tr');
       if (row) row.remove();
-      updateLeadStatus(leadId, 'reviewed');
+      // Fire individual PATCH too (for instant persistence when snag isn't clicked).
+      // The server lock ensures these don't stomp each other.
+      fetch('/api/job-board/'+leadId, { method:'PATCH', headers: (function(){ var k=localStorage.getItem('hopespot_apikey'); if(k) return {'x-api-key':k,'Content-Type':'application/json'}; return {'x-auth-token':localStorage.getItem('hopespot_token')||'','Content-Type':'application/json'}; })(), body: JSON.stringify({ status: 'reviewed' }) }).then(function(r){ if(r && r.ok) { _skippedLeadIds.delete(leadId); var b=document.getElementById('badge-jobboard'); if(b){var n=parseInt(b.textContent)||0; if(n>0)b.textContent=n-1;} if(typeof toast==='function') toast('Skipped'); } }).catch(function(){});
     }
     return;
   }
