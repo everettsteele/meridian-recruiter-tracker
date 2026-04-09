@@ -303,7 +303,6 @@ async function _submitAddApp() {
 async function renderJobBoard() {
   var leads = [];
   try {
-    // Timestamp cache-busts the URL so Safari can't serve a stale response.
     var r = await fetch('/api/job-board?_=' + Date.now(), { headers: _authFH() });
     if (r.status === 401) { document.getElementById('main-content').innerHTML = '<div class="empty">Auth error. Refresh the page.</div>'; return; }
     leads = await r.json();
@@ -350,22 +349,27 @@ async function renderJobBoard() {
   if (badge) badge.textContent = newLeads.length;
 }
 
-// updateLeadStatus: checks resp.ok before toasting.
-// If the PATCH fails (404, 401, etc), shows the status code so we can diagnose.
+// Skip: fire PATCH to server, then decrement badge. No full re-render.
+// The row is already removed from the DOM by the event delegation handler below.
 async function updateLeadStatus(id, status) {
   var resp;
   try {
     resp = await fetch('/api/job-board/'+id, { method:'PATCH', headers:_authH(), body:JSON.stringify({ status:status }) });
   } catch(e) {
-    if (typeof toast === 'function') toast('Skip failed (network error)');
+    if (typeof toast === 'function') toast('Skip failed (network)');
     return;
   }
   if (!resp || !resp.ok) {
-    if (typeof toast === 'function') toast('Skip failed (HTTP ' + (resp ? resp.status : '?') + ') \u2014 refresh and try again');
+    if (typeof toast === 'function') toast('Skip failed (HTTP ' + (resp ? resp.status : '?') + ')');
     return;
   }
+  // PATCH succeeded. Decrement the badge count.
+  var badge = document.getElementById('badge-jobboard');
+  if (badge) {
+    var n = parseInt(badge.textContent) || 0;
+    if (n > 0) badge.textContent = n - 1;
+  }
   if (typeof toast === 'function') toast('Skipped');
-  await renderJobBoard();
 }
 
 async function snagLead(leadId, btn) {
@@ -608,26 +612,28 @@ window.deleteEvent = deleteEvent;
 window.showAddEventModal = showAddEventModal;
 
 // ================================================================
-// EVENT DELEGATION: Job board Skip / Snag + NO PKG Drive URL paste
-// On Skip: immediately hide the row from the DOM (instant feedback),
-// then fire the PATCH. If PATCH fails, re-render restores the row.
+// EVENT DELEGATION
+// Skip: stopPropagation prevents the click from bubbling to the tab
+// system and triggering a re-render that puts the lead back.
+// Row is removed from the DOM immediately. PATCH fires in background.
 // ================================================================
 document.addEventListener('click', function(e) {
   var target = e.target;
   if (!target) return;
 
   if (target.classList.contains('hs-skip-btn')) {
+    e.stopPropagation();
     var leadId = target.getAttribute('data-lead-id');
     if (leadId) {
-      // Optimistic: hide the row immediately so the user sees instant feedback.
       var row = target.closest('tr');
-      if (row) row.style.display = 'none';
+      if (row) row.remove();
       updateLeadStatus(leadId, 'reviewed');
     }
     return;
   }
 
   if (target.classList.contains('hs-snag-btn')) {
+    e.stopPropagation();
     var leadId = target.getAttribute('data-lead-id');
     if (leadId) snagLead(leadId, target);
     return;
