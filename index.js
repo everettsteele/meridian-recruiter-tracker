@@ -80,6 +80,17 @@ function loadCalConfig() {
 function saveCalConfig(c) { try { fs.writeFileSync(CAL_CONFIG_PATH, JSON.stringify(c, null, 2)); } catch(e) {} }
 
 // ================================================================
+// DIAGNOSTIC LOG RING BUFFER — last 50 entries, retrievable via /api/diag/logs
+// ================================================================
+const _diagLogs = [];
+function diagLog(msg) {
+  const entry = '[' + new Date().toISOString() + '] ' + msg;
+  console.log(entry);
+  _diagLogs.push(entry);
+  if (_diagLogs.length > 50) _diagLogs.shift();
+}
+
+// ================================================================
 // JOB BOARD WRITE LOCK
 // Concurrent skip PATCHes each read the same stale file, then write
 // with only their own change — last write wins and all others are lost.
@@ -90,12 +101,12 @@ let _jobBoardLock = Promise.resolve();
 let _lockSeq = 0;
 function withJobBoardLock(fn) {
   const seq = ++_lockSeq;
-  console.log('[LOCK] queued seq=%d', seq);
+  diagLog('LOCK queued seq=' + seq);
   _jobBoardLock = _jobBoardLock.then(() => {
-    console.log('[LOCK] executing seq=%d', seq);
+    diagLog('LOCK executing seq=' + seq);
     return fn();
   }).catch(e => {
-    console.error('[LOCK] ERROR seq=%d:', seq, e);
+    diagLog('LOCK ERROR seq=' + seq + ': ' + (e && e.message || e));
   });
   return _jobBoardLock;
 }
@@ -717,26 +728,29 @@ app.post('/api/create-drive-package', requireAuth, async (req, res) => {
 // GET: only 'new' leads. Skipped/snagged never come back through re-render.
 app.get('/api/job-board', requireAuth, (req, res) => {
   const leads = loadJobBoardLeads(), { status } = req.query;
+  const statusCounts = {};
+  leads.forEach(l => { statusCounts[l.status] = (statusCounts[l.status]||0) + 1; });
+  diagLog('GET /api/job-board query_status=' + (status||'(default=new)') + ' total=' + leads.length + ' counts=' + JSON.stringify(statusCounts));
   const filtered = status ? leads.filter(l => l.status === status) : leads.filter(l => l.status === 'new');
   res.json(filtered.sort((a,b) => (b.fit_score - a.fit_score) || b.date_found.localeCompare(a.date_found)));
 });
 
 // PATCH single lead — serialized through write lock.
 app.patch('/api/job-board/:id', requireAuth, (req, res) => {
-  console.log('[PATCH /api/job-board/:id] id=%s body=%j', req.params.id, req.body);
+  diagLog('PATCH id=' + req.params.id + ' body=' + JSON.stringify(req.body));
   withJobBoardLock(() => {
     const leads = loadJobBoardLeads();
-    console.log('[PATCH lock] loaded %d leads, searching for id=%s', leads.length, req.params.id);
+    diagLog('PATCH-LOCK loaded ' + leads.length + ' leads, searching for id=' + req.params.id);
     const idx = leads.findIndex(l => l.id === req.params.id);
     if (idx < 0) {
-      console.warn('[PATCH lock] NOT FOUND id=%s — lead IDs sample: %j', req.params.id, leads.slice(0,3).map(l => l.id));
+      diagLog('PATCH-LOCK NOT FOUND id=' + req.params.id + ' sample_ids=' + JSON.stringify(leads.slice(0,3).map(l => l.id)));
       res.status(404).json({ error: 'Not found' });
       return;
     }
-    console.log('[PATCH lock] found at idx=%d, current status=%s, setting to %s', idx, leads[idx].status, req.body.status);
+    diagLog('PATCH-LOCK found idx=' + idx + ' cur_status=' + leads[idx].status + ' new_status=' + req.body.status);
     leads[idx] = { ...leads[idx], ...req.body, id: leads[idx].id };
     const saved = saveJobBoardLeads(leads);
-    console.log('[PATCH lock] save result=%s', saved);
+    diagLog('PATCH-LOCK saved=' + saved);
     if (!saved) { res.status(500).json({ error: 'Save failed' }); return; }
     res.json(leads[idx]);
   });
@@ -745,20 +759,20 @@ app.patch('/api/job-board/:id', requireAuth, (req, res) => {
 // BATCH UPDATE — updates multiple leads in one atomic write.
 app.post('/api/job-board/batch-update', requireAuth, (req, res) => {
   const updates = req.body.updates;
-  console.log('[BATCH-UPDATE] received %d updates: %j', Array.isArray(updates) ? updates.length : 0, updates);
+  diagLog('BATCH-UPDATE received ' + (Array.isArray(updates) ? updates.length : 0) + ' updates: ' + JSON.stringify(updates));
   if (!Array.isArray(updates) || !updates.length) return res.status(400).json({ error: 'updates array required' });
   withJobBoardLock(() => {
     const leads = loadJobBoardLeads();
     const results = [];
     updates.forEach(({ id, status, ...rest }) => {
       const idx = leads.findIndex(l => l.id === id);
-      if (idx < 0) { console.warn('[BATCH-UPDATE] id=%s NOT FOUND', id); return; }
-      console.log('[BATCH-UPDATE] updating idx=%d id=%s from %s to %s', idx, id, leads[idx].status, status);
+      if (idx < 0) { diagLog('BATCH-UPDATE id=' + id + ' NOT FOUND'); return; }
+      diagLog('BATCH-UPDATE idx=' + idx + ' id=' + id + ' from=' + leads[idx].status + ' to=' + status);
       leads[idx] = { ...leads[idx], ...rest, status, id: leads[idx].id };
       results.push(leads[idx]);
     });
     const saved = saveJobBoardLeads(leads);
-    console.log('[BATCH-UPDATE] save result=%s, updated=%d', saved, results.length);
+    diagLog('BATCH-UPDATE saved=' + saved + ' updated=' + results.length);
     if (!saved) { res.status(500).json({ error: 'Save failed' }); return; }
     res.json({ ok: true, updated: results.length });
   });
@@ -767,12 +781,12 @@ app.post('/api/job-board/batch-update', requireAuth, (req, res) => {
 // SNAG — serialized through write lock.
 app.post('/api/job-board/snag', requireAuth, (req, res) => {
   const { lead_id } = req.body;
-  console.log('[SNAG] lead_id=%s', lead_id);
+  diagLog('SNAG lead_id=' + lead_id);
   if (!lead_id) return res.status(400).json({ error: 'lead_id required' });
   withJobBoardLock(() => {
     const leads = loadJobBoardLeads(), li = leads.findIndex(l => l.id === lead_id);
-    console.log('[SNAG lock] loaded %d leads, findIndex=%d', leads.length, li);
-    if (li < 0) { console.warn('[SNAG lock] NOT FOUND lead_id=%s', lead_id); res.status(404).json({ error: 'Lead not found' }); return; }
+    diagLog('SNAG-LOCK loaded=' + leads.length + ' findIndex=' + li);
+    if (li < 0) { diagLog('SNAG-LOCK NOT FOUND lead_id=' + lead_id); res.status(404).json({ error: 'Lead not found' }); return; }
     const lead = leads[li], today = todayET(), fd = new Date(today + 'T12:00:00Z');
     fd.setDate(fd.getDate() + 7);
     const newApp = { id: randomUUID(), company: lead.organization||lead.title, role: lead.title, applied_date: today, status: 'queued', source_url: lead.url, notion_url: '', drive_url: '', follow_up_date: fd.toISOString().split('T')[0], last_activity: today, notes: 'Snagged from '+(lead.source_label||lead.source)+(lead.location?' \u00b7 '+lead.location:''), activity: [{ date: today, type: 'queued', note: 'Snagged from '+(lead.source_label||lead.source) }] };
@@ -979,6 +993,11 @@ app.post('/api/sync', requireAuth, (req, res) => {
   if (dc) saveDynamic(dynamic);
   saveOverrides(ov);
   res.json({ ok: true, changed });
+});
+
+// Diagnostic: retrieve log ring buffer
+app.get('/api/diag/logs', (req, res) => {
+  res.json({ count: _diagLogs.length, logs: _diagLogs });
 });
 
 // Diagnostic: test job board read-modify-write cycle
