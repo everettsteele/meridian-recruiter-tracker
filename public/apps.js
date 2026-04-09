@@ -1,4 +1,4 @@
-// HopeSpot apps.js v7.8
+// HopeSpot apps.js v8.0
 
 const APP_STATUSES = {
   queued:                { label: 'Queued',       color: '#7c3aed' },

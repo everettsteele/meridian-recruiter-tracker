@@ -1,7 +1,7 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
-const { randomUUID } = require('crypto');
+const { randomUUID, createHash } = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -473,7 +473,7 @@ async function crawlJobBoards() {
             }
 
             const lead = {
-              id: source.name.slice(0,2) + '-' + Buffer.from(jobUrl).toString('base64').replace(/[^a-zA-Z0-9]/g,'').slice(0,14),
+              id: source.name.slice(0,2) + '-' + createHash('sha256').update(jobUrl).digest('hex').slice(0,16),
               source: source.name,
               source_label: source.label,
               title: title.slice(0, 200),
@@ -522,9 +522,32 @@ setInterval(() => {
   } catch(e) {}
 }, 5 * 60 * 1000);
 
+// Migrate existing leads: fix duplicate IDs caused by truncated base64
+function migrateLeadIds() {
+  const leads = loadJobBoardLeads();
+  if (!leads.length) return;
+  const seen = new Set();
+  let dupes = 0;
+  leads.forEach(l => {
+    if (seen.has(l.id)) dupes++;
+    seen.add(l.id);
+  });
+  if (dupes === 0) { console.log('[MIGRATE] No duplicate lead IDs found.'); return; }
+  console.log('[MIGRATE] Found ' + dupes + ' duplicate IDs. Regenerating all IDs from URLs.');
+  leads.forEach(l => {
+    if (l.url) {
+      const src = (l.source || '').slice(0, 2) || 'xx';
+      l.id = src + '-' + createHash('sha256').update(l.url).digest('hex').slice(0, 16);
+    }
+  });
+  saveJobBoardLeads(leads);
+  console.log('[MIGRATE] Lead IDs regenerated. ' + leads.length + ' leads updated.');
+}
+
 setTimeout(bootCheck, 3000);
 setTimeout(bootSeedApplications, 4000);
-console.log(`HopeSpot v7.8 \u2014 seeds:${readSeed('firms').length}f/${readSeed('ceos').length}c/${readSeed('vcs').length}v`);
+setTimeout(migrateLeadIds, 2000);
+console.log(`HopeSpot v8.0 \u2014 seeds:${readSeed('firms').length}f/${readSeed('ceos').length}c/${readSeed('vcs').length}v`);
 
 const sessions = new Set();
 function requireAuth(req, res, next) {
@@ -942,7 +965,7 @@ app.get('/api/debug', (req, res) => {
   try { const t = path.join(DATA_DIR, '.write_test'); fs.writeFileSync(t, 'ok'); fs.unlinkSync(t); dataWritable = true; } catch(e) {}
   const apps = loadApplications(), jb = loadJobBoardLeads(), net = loadNetworking(), calCfg = loadCalConfig();
   const overdueSteps = net.filter(e=>!e.hidden).reduce((n, e) => n + (e.next_steps||[]).filter(ns => !ns.done && ns.due_date && ns.due_date <= today).length, 0);
-  res.json({ version: '7.8', dataWritable, dataDir: DATA_DIR, applicationCount: apps.length, applicationsByStatus: apps.reduce((acc,a) => { acc[a.status]=(acc[a.status]||0)+1; return acc; }, {}), applicationsWithCoverLetter: apps.filter(a => a.cover_letter_text).length, jobBoardLeads: jb.length, jobBoardNew: jb.filter(l => l.status==='new').length, jobBoardReviewed: jb.filter(l => l.status==='reviewed').length, jobBoardSnagged: jb.filter(l => l.status==='snagged').length, driveConfigured: !!process.env.DRIVE_WEBHOOK_URL, anthropicConfigured: !!process.env.ANTHROPIC_API_KEY, dueCount, cronState: loadCronState(), todayET: today });
+  res.json({ version: '8.0', dataWritable, dataDir: DATA_DIR, applicationCount: apps.length, applicationsByStatus: apps.reduce((acc,a) => { acc[a.status]=(acc[a.status]||0)+1; return acc; }, {}), applicationsWithCoverLetter: apps.filter(a => a.cover_letter_text).length, jobBoardLeads: jb.length, jobBoardNew: jb.filter(l => l.status==='new').length, jobBoardReviewed: jb.filter(l => l.status==='reviewed').length, jobBoardSnagged: jb.filter(l => l.status==='snagged').length, driveConfigured: !!process.env.DRIVE_WEBHOOK_URL, anthropicConfigured: !!process.env.ANTHROPIC_API_KEY, dueCount, cronState: loadCronState(), todayET: today });
 });
 
 const SECTOR_EXCLUDE_FROM_TABLE = new Set(['network']);
@@ -1043,6 +1066,6 @@ app.get('/api/diag/job-board-rwtest', (req, res) => {
   } catch(e) { res.json({ ok: false, error: e.message, stack: e.stack }); }
 });
 
-app.get('/health', (req, res) => res.json({ ok: true, port: PORT, version: '7.9-diag2', todayET: todayET() }));
+app.get('/health', (req, res) => res.json({ ok: true, port: PORT, version: '8.0', todayET: todayET() }));
 app.use(express.static(path.join(__dirname, 'public')));
 app.listen(PORT, '0.0.0.0', () => console.log('HopeSpot v7.8 listening on port ' + PORT));
