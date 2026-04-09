@@ -11,7 +11,7 @@ const APP_STATUSES = {
   withdrawn:             { label: 'Withdrawn',    color: '#9ca3af' }
 };
 
-var _appsData = [], _netData = [], _showHiddenNet = false;
+var _appsData = [], _netData = [], _showHiddenNet = false, _appStatusFilter = 'all';
 
 // _skippedLeadIds: IDs skipped this session, not yet confirmed persisted.
 // Kept even after PATCH responds so _purgeSkippedRows() can clean up any
@@ -220,35 +220,50 @@ async function loadApps() {
   renderApplications();
 }
 
+function _setAppStatusFilter(val) { _appStatusFilter = val; renderApplications(); }
+
 function renderApplications() {
   var today = new Date().toISOString().split('T')[0];
   var counts = {};
   _appsData.forEach(function(a) { counts[a.status] = (counts[a.status]||0)+1; });
-  var summary = Object.entries(APP_STATUSES).filter(function(e){return counts[e[0]];}).map(function(e){var k=e[0],v=e[1];return '<span style="padding:4px 10px;border-radius:12px;font-size:12px;font-weight:600;background:'+v.color+'18;color:'+v.color+';border:1px solid '+v.color+'30">'+counts[k]+' '+v.label+'</span>';}).join('');
-  var rows = _appsData.map(function(app) {
+
+  // Filter by status
+  var filtered = _appStatusFilter === 'all' ? _appsData : _appsData.filter(function(a) { return a.status === _appStatusFilter; });
+
+  // Status filter dropdown
+  var filterOpts = '<option value="all"' + (_appStatusFilter==='all'?' selected':'') + '>All (' + _appsData.length + ')</option>';
+  Object.entries(APP_STATUSES).forEach(function(e) {
+    var k = e[0], v = e[1], c = counts[k] || 0;
+    if (c > 0) filterOpts += '<option value="'+k+'"' + (_appStatusFilter===k?' selected':'') + '>'+v.label+' ('+c+')</option>';
+  });
+
+  var rows = filtered.map(function(app) {
     var st = APP_STATUSES[app.status]||{label:app.status,color:'#6b7280'};
     var ov = app.follow_up_date&&app.follow_up_date<=today&&['rejected','offer','withdrawn'].indexOf(app.status)<0;
     var lat = (app.activity||[]).slice(-1)[0];
     var actHtml = lat ? '<span style="font-size:11px;color:#9CA3AF">'+lat.date+': '+(lat.note||lat.type)+'</span>' : '';
     var opts = Object.entries(APP_STATUSES).map(function(e){return '<option value="'+e[0]+'" '+(app.status===e[0]?'selected':'')+'>'+e[1].label+'</option>';}).join('');
-    var noPkgBadge = (app.status==='queued'&&!app.drive_url)
-      ? ' <span class="hs-set-drive" data-app-id="'+app.id+'" style="font-size:9px;background:#FEF2F2;color:#EF4444;padding:1px 5px;border-radius:3px;vertical-align:middle;cursor:pointer" title="Click to paste Drive URL">NO PKG</span>'
-      : '';
+
+    // Package links — always show both, disabled style when missing
     var clBtn = app.cover_letter_text
       ? '<a href="/api/applications/'+app.id+'/cover-letter?'+_authToken()+'" target="_blank" style="display:inline-block;padding:3px 8px;background:#2563eb;border-radius:5px;font-size:11px;color:#fff;text-decoration:none;margin-right:3px" title="View and print cover letter">Cover Letter</a>'
+      : '<span style="display:inline-block;padding:3px 8px;background:#F3F4F6;border-radius:5px;font-size:11px;color:#D1D5DB;margin-right:3px;cursor:default" title="No cover letter yet">Cover Letter</span>';
+    var driveBtn = app.drive_url
+      ? '<a href="'+app.drive_url+'" target="_blank" style="display:inline-block;padding:3px 8px;background:#16a34a;border-radius:5px;font-size:11px;color:#fff;text-decoration:none;margin-right:3px" title="Open Drive folder with resume">Resume</a>'
+      : '<span class="hs-set-drive" data-app-id="'+app.id+'" style="display:inline-block;padding:3px 8px;background:#F3F4F6;border-radius:5px;font-size:11px;color:#D1D5DB;margin-right:3px;cursor:pointer" title="Click to paste Drive URL">Resume</span>';
+    var applyBtn = app.source_url
+      ? '<a href="'+app.source_url+'" target="_blank" style="display:inline-block;padding:3px 8px;background:#f97316;border-radius:5px;font-size:11px;color:#fff;text-decoration:none;margin-right:3px">Apply</a>'
       : '';
+
     return '<tr style="border-bottom:1px solid #F3F4F6">'
-      +'<td style="padding:10px 0;font-weight:600;font-size:13px">'+app.company+noPkgBadge+'</td>'
+      +'<td style="padding:10px 0;font-weight:600;font-size:13px">'+app.company+'</td>'
       +'<td style="padding:10px 8px;font-size:12px;color:#6B7280">'+app.role+'</td>'
       +'<td style="padding:10px 8px;font-size:12px">'+(app.applied_date||'')+'</td>'
       +'<td style="padding:10px 8px"><select onchange="_patchApp(this.dataset.id,{status:this.value})" data-id="'+app.id+'" style="font-size:11px;padding:3px 5px;color:'+st.color+';border:1px solid '+st.color+'40;border-radius:4px;background:'+st.color+'12;cursor:pointer">'+opts+'</select></td>'
       +'<td style="padding:10px 8px;font-size:12px;color:'+(ov?'#EF4444':'#6B7280')+'">'+(app.follow_up_date||'')+(ov?' \u26a0':'')+'</td>'
       +'<td style="padding:10px 8px">'+actHtml+'</td>'
       +'<td style="padding:10px 0;white-space:nowrap">'
-        +clBtn
-        +(app.drive_url?'<a href="'+app.drive_url+'" target="_blank" style="display:inline-block;padding:3px 8px;background:#16a34a;border-radius:5px;font-size:11px;color:#fff;text-decoration:none;margin-right:3px">Drive</a>':'')
-        +(app.notion_url?'<a href="'+app.notion_url+'" target="_blank" style="display:inline-block;padding:3px 8px;background:#f3f4f6;border-radius:5px;font-size:11px;color:#374151;text-decoration:none;margin-right:3px">Pkg</a>':'')
-        +(app.source_url?'<a href="'+app.source_url+'" target="_blank" style="display:inline-block;padding:3px 8px;background:#f97316;border-radius:5px;font-size:11px;color:#fff;text-decoration:none;margin-right:3px">Apply</a>':'')
+        +clBtn+driveBtn+applyBtn
         +'<button data-id="'+app.id+'" onclick="_deleteApp(this.dataset.id)" style="padding:3px 8px;border-radius:5px;border:1px solid #FCA5A5;background:#FEF2F2;color:#EF4444;font-size:11px;cursor:pointer">&times;</button>'
       +'</td></tr>';
   }).join('');
@@ -258,7 +273,10 @@ function renderApplications() {
     : '';
   document.getElementById('main-content').innerHTML =
     '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px"><div><div style="font-size:22px;font-weight:700">Applications</div><div style="font-size:13px;color:#9ca3af;margin-top:2px">'+_appsData.length+' tracked &nbsp;&middot;&nbsp; '+needsPkgCount+' need a package</div></div><div style="display:flex;align-items:center">'+batchBtn+'<button onclick="_showAddAppModal()" style="padding:9px 18px;background:#f97316;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;margin-left:10px">+ Log Application</button></div></div>'
-    +'<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">'+summary+'</div>'
+    +'<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">'
+      +'<select onchange="_setAppStatusFilter(this.value)" style="padding:6px 10px;border:1px solid #E5E7EB;border-radius:7px;font-size:12px;outline:none;background:#fff;cursor:pointer">'+filterOpts+'</select>'
+      +'<div style="display:flex;gap:6px;flex-wrap:wrap">'+Object.entries(APP_STATUSES).filter(function(e){return counts[e[0]];}).map(function(e){var k=e[0],v=e[1];return '<span style="padding:3px 8px;border-radius:10px;font-size:11px;font-weight:600;background:'+v.color+'12;color:'+v.color+';border:1px solid '+v.color+'25">'+counts[k]+' '+v.label+'</span>';}).join('')+'</div>'
+    +'</div>'
     +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">'
     +'<thead><tr style="border-bottom:2px solid #E5E7EB"><th style="text-align:left;padding:8px 0;font-size:10px;color:#9CA3AF;font-weight:700;text-transform:uppercase;letter-spacing:.05em">Company</th><th style="text-align:left;padding:8px;font-size:10px;color:#9CA3AF;font-weight:700;text-transform:uppercase;letter-spacing:.05em">Role</th><th style="text-align:left;padding:8px;font-size:10px;color:#9CA3AF;font-weight:700;text-transform:uppercase;letter-spacing:.05em">Added</th><th style="text-align:left;padding:8px;font-size:10px;color:#9CA3AF;font-weight:700;text-transform:uppercase;letter-spacing:.05em">Status</th><th style="text-align:left;padding:8px;font-size:10px;color:#9CA3AF;font-weight:700;text-transform:uppercase;letter-spacing:.05em">Follow-up</th><th style="text-align:left;padding:8px;font-size:10px;color:#9CA3AF;font-weight:700;text-transform:uppercase;letter-spacing:.05em">Activity</th><th style="padding:8px 0"></th></tr></thead>'
     +'<tbody>'+(rows||'<tr><td colspan="7" style="text-align:center;padding:32px;color:#9CA3AF">No applications yet.</td></tr>')+'</tbody></table></div>';
@@ -602,6 +620,7 @@ async function showAddEventModal() {
 window.renderDashboard = renderDashboard;
 window.loadApps = loadApps;
 window.renderApplications = renderApplications;
+window._setAppStatusFilter = _setAppStatusFilter;
 window._patchApp = _patchApp;
 window._deleteApp = _deleteApp;
 window._setDriveUrl = _setDriveUrl;
