@@ -11,7 +11,7 @@ const APP_STATUSES = {
   withdrawn:             { label: 'Withdrawn',    color: '#9ca3af' }
 };
 
-var _appsData = [], _netData = [], _showHiddenNet = false, _appStatusFilter = 'all';
+var _appsData = [], _netData = [], _showHiddenNet = false, _appStatusFilter = localStorage.getItem('hs_app_filter') || 'all';
 
 // _skippedLeadIds: IDs skipped this session, not yet confirmed persisted.
 // Kept even after PATCH responds so _purgeSkippedRows() can clean up any
@@ -220,7 +220,7 @@ async function loadApps() {
   renderApplications();
 }
 
-function _setAppStatusFilter(val) { _appStatusFilter = val; renderApplications(); }
+function _setAppStatusFilter(val) { _appStatusFilter = val; localStorage.setItem('hs_app_filter', val); renderApplications(); }
 
 function renderApplications() {
   var today = new Date().toISOString().split('T')[0];
@@ -248,16 +248,20 @@ function renderApplications() {
     var clUrl = '/api/applications/'+app.id+'/cover-letter?'+_authToken();
     var clBtn = app.cover_letter_text
       ? '<button onclick="window.open(\''+clUrl.replace(/'/g,"\\'")+'\',\'_blank\')" style="padding:3px 8px;background:#2563eb;border:none;border-radius:5px;font-size:11px;color:#fff;cursor:pointer;margin-right:3px">Cover Letter</button>'
-      : '<span style="display:inline-block;padding:3px 8px;background:#F3F4F6;border-radius:5px;font-size:11px;color:#D1D5DB;margin-right:3px" title="Run Build Queued Packages to generate">Cover Letter</span>';
+      : '<span style="display:inline-block;padding:3px 8px;background:#F3F4F6;border-radius:5px;font-size:11px;color:#D1D5DB;margin-right:3px" title="Run Build Queued Packages">Cover Letter</span>';
     var driveBtn = app.drive_url
       ? '<button onclick="window.open(\''+app.drive_url.replace(/'/g,"\\'")+'\',\'_blank\')" style="padding:3px 8px;background:#16a34a;border:none;border-radius:5px;font-size:11px;color:#fff;cursor:pointer;margin-right:3px">Resume</button>'
-      : '<span style="display:inline-block;padding:3px 8px;background:#F3F4F6;border-radius:5px;font-size:11px;color:#D1D5DB;margin-right:3px" title="Run Build Queued Packages to create">Resume</span>';
+      : '<span style="display:inline-block;padding:3px 8px;background:#F3F4F6;border-radius:5px;font-size:11px;color:#D1D5DB;margin-right:3px" title="Run Build Queued Packages">Resume</span>';
     var applyBtn = app.source_url
       ? '<button onclick="window.open(\''+app.source_url.replace(/'/g,"\\'")+'\',\'_blank\')" style="padding:3px 8px;background:#f97316;border:none;border-radius:5px;font-size:11px;color:#fff;cursor:pointer;margin-right:3px">Apply</button>'
       : '';
+    var variantColors = { operator:'#7c3aed', partner:'#2563eb', builder:'#d97706', innovator:'#0891b2' };
+    var variantBadge = app.resume_variant
+      ? ' <span style="font-size:9px;padding:1px 5px;border-radius:3px;background:'+(variantColors[app.resume_variant]||'#6b7280')+'15;color:'+(variantColors[app.resume_variant]||'#6b7280')+';vertical-align:middle">'+app.resume_variant+'</span>'
+      : '';
 
     return '<tr style="border-bottom:1px solid #F3F4F6">'
-      +'<td style="padding:10px 0;font-weight:600;font-size:13px">'+app.company+'</td>'
+      +'<td style="padding:10px 0;font-weight:600;font-size:13px">'+app.company+variantBadge+'</td>'
       +'<td style="padding:10px 8px;font-size:12px;color:#6B7280">'+app.role+'</td>'
       +'<td style="padding:10px 8px;font-size:12px">'+(app.applied_date||'')+'</td>'
       +'<td style="padding:10px 8px"><select onchange="_patchApp(this.dataset.id,{status:this.value})" data-id="'+app.id+'" style="font-size:11px;padding:3px 5px;color:'+st.color+';border:1px solid '+st.color+'40;border-radius:4px;background:'+st.color+'12;cursor:pointer">'+opts+'</select></td>'

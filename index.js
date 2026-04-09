@@ -266,6 +266,48 @@ Veteran (US Army, Infantry Recon Platoon Leader, Baghdad). 3 successful exits as
 FORMAT:
 3-4 paragraphs. Under 350 words. No sign-off needed. Output the letter text only.`;
 
+const VARIANT_LABELS = {
+  operator: 'Integrator/COO — EOS, scaling, building the operational machine',
+  partner: 'Chief of Staff — right-hand to CEO, strategic ops, force multiplier',
+  builder: 'VP/SVP Operations — multi-function ownership, revenue ops, GTM, cross-functional',
+  innovator: 'AI/Special Projects — AI, automation, innovation, special initiatives'
+};
+
+async function selectResumeVariant(appRecord, jdText) {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return 'operator';
+  try {
+    const prompt = `Based on this job description, pick the single best resume variant for Everett Steele to use.
+
+VARIANTS:
+- operator: Integrator/COO role. JD uses EOS, Integrator, or scaling context. Operator brought in to build the machine.
+- partner: Chief of Staff role. Right-hand-to-CEO, force multiplier, strategic ops, executive leverage.
+- builder: VP/SVP Operations role. Owns multiple functions, revenue ops, CS, GTM alignment, cross-functional accountability.
+- innovator: AI/Special Projects role. AI, automation, innovation, or explicit special initiatives scope.
+
+RULES:
+- If the JD uses "Integrator" language explicitly, always pick operator.
+- If the title says "Chief of Staff", pick partner.
+- For roles that fit two categories, default to the one matching the JD title.
+- Respond with ONLY the single word: operator, partner, builder, or innovator. Nothing else.
+
+ROLE: ${appRecord.role} at ${appRecord.company}
+JOB DESCRIPTION:
+${jdText.slice(0, 2000)}`;
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+      body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 10, messages: [{ role: 'user', content: prompt }] }),
+      signal: AbortSignal.timeout(10000)
+    });
+    if (!resp.ok) return 'operator';
+    const data = await resp.json();
+    const raw = (data.content?.[0]?.text || '').trim().toLowerCase();
+    if (['operator','partner','builder','innovator'].includes(raw)) return raw;
+    return 'operator';
+  } catch(e) { console.error('[selectResumeVariant]', e.message); return 'operator'; }
+}
+
 async function generateCoverLetterForApp(appRecord, jdText) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY not set');
@@ -710,24 +752,32 @@ app.post('/api/applications/batch-packages', requireAuth, async (req, res) => {
         if (idx < 0) continue;
         const today = todayET();
         let coverLetter = allApps[idx].cover_letter_text;
+        let jdText = '';
         // Phase 1: Generate cover letter if missing
         if (!coverLetter) {
-          let jdText = await fetchJobDescription(appRec.source_url);
+          jdText = await fetchJobDescription(appRec.source_url);
           if (!jdText || jdText.length < 50) jdText = `Position: ${appRec.role} at ${appRec.company}. ${appRec.notes || ''}`.trim();
           coverLetter = await generateCoverLetterForApp(appRec, jdText);
           if (!coverLetter || coverLetter.length < 50) { failed++; continue; }
           allApps[idx].cover_letter_text = coverLetter;
           allApps[idx].last_activity = today;
         }
-        // Phase 2: Create Drive folder if missing
+        // Phase 2: Select resume variant + create Drive folder if missing
         if (webhookUrl && !allApps[idx].drive_url) {
+          if (!jdText) {
+            jdText = await fetchJobDescription(appRec.source_url);
+            if (!jdText || jdText.length < 50) jdText = `Position: ${appRec.role} at ${appRec.company}. ${appRec.notes || ''}`.trim();
+          }
+          const variant = await selectResumeVariant(appRec, jdText);
+          allApps[idx].resume_variant = variant;
+          console.log(`[batch-packages] ${appRec.company}: variant=${variant}`);
           try {
-            const response = await postToAppsScript(webhookUrl, { folderName: `${appRec.company} - ${appRec.role}`, variant: 'operator', coverLetterText: coverLetter, company: appRec.company, role: appRec.role });
+            const response = await postToAppsScript(webhookUrl, { folderName: `${appRec.company} - ${appRec.role}`, variant, coverLetterText: coverLetter, company: appRec.company, role: appRec.role });
             const text = await response.text();
             let result; try { result = JSON.parse(text); } catch(e) { result = null; }
             if (result && result.ok) {
               const folderUrl = result.folderUrl || result.driveUrl || result.url || result.folder_url || '';
-              if (folderUrl) { allApps[idx].drive_url = folderUrl; allApps[idx].drive_folder_id = result.folderId || ''; (allApps[idx].activity = allApps[idx].activity||[]).push({ date: today, type: 'package_created', note: 'Auto-built: ' + folderUrl }); }
+              if (folderUrl) { allApps[idx].drive_url = folderUrl; allApps[idx].drive_folder_id = result.folderId || ''; (allApps[idx].activity = allApps[idx].activity||[]).push({ date: today, type: 'package_created', note: variant + ' package: ' + folderUrl }); }
             }
           } catch(driveErr) { console.log(`[batch-packages] Drive error for ${appRec.company}: ${driveErr.message}`); }
         }
