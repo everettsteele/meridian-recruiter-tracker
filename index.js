@@ -73,7 +73,7 @@ function saveCalConfig(c) { try { fs.writeFileSync(CAL_CONFIG_PATH, JSON.stringi
 // ================================================================
 let _jobBoardLock = Promise.resolve();
 function withJobBoardLock(fn) {
-  _jobBoardLock = _jobBoardLock.then(fn).catch(fn);
+  _jobBoardLock = _jobBoardLock.then(fn).catch(e => console.error('[jobBoardLock]', e));
   return _jobBoardLock;
 }
 
@@ -740,12 +740,13 @@ app.post('/api/job-board/snag', requireAuth, (req, res) => {
     if (li < 0) { res.status(404).json({ error: 'Lead not found' }); return; }
     const lead = leads[li], today = todayET(), fd = new Date(today + 'T12:00:00Z');
     fd.setDate(fd.getDate() + 7);
-    const newApp = { id: randomUUID(), company: lead.organization||lead.title||'Unknown', role: lead.title, applied_date: today, status: 'queued', source_url: lead.url, notion_url: '', drive_url: '', follow_up_date: fd.toISOString().split('T')[0], last_activity: today, notes: 'Snagged from '+(lead.source_label||lead.source)+(lead.location?' \u00b7 '+lead.location:''), activity: [{ date: today, type: 'queued', note: 'Snagged from '+(lead.source_label||lead.source) }] };
+    const newApp = { id: randomUUID(), company: lead.organization||lead.title, role: lead.title, applied_date: today, status: 'queued', source_url: lead.url, notion_url: '', drive_url: '', follow_up_date: fd.toISOString().split('T')[0], last_activity: today, notes: 'Snagged from '+(lead.source_label||lead.source)+(lead.location?' \u00b7 '+lead.location:''), activity: [{ date: today, type: 'queued', note: 'Snagged from '+(lead.source_label||lead.source) }] };
     const apps = loadApplications(); apps.push(newApp);
     const appSaved = saveApplications(apps);
     if (!appSaved) { res.status(500).json({ error: 'Failed to save application' }); return; }
     leads[li].status = 'snagged'; leads[li].snagged_app_id = newApp.id;
-    saveJobBoardLeads(leads);
+    const leadSaved = saveJobBoardLeads(leads);
+    if (!leadSaved) { res.status(500).json({ error: 'Failed to update lead status' }); return; }
     res.json({ ok: true, application: newApp });
   });
 });
