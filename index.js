@@ -540,6 +540,16 @@ function requireAuth(req, res, next) {
 app.use(express.json());
 app.use('/api', (req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
 
+// Log ALL job-board requests BEFORE auth — to catch 401 rejections
+app.use('/api/job-board', (req, res, next) => {
+  const authToken = req.headers['x-auth-token'] || '';
+  const apiKey = req.headers['x-api-key'] || '';
+  const hasSession = sessions.has(authToken);
+  const hasApiKey = API_KEY && apiKey === API_KEY;
+  diagLog('PRE-AUTH ' + req.method + ' ' + req.originalUrl + ' auth_token=' + (authToken ? authToken.slice(0,8) + '...' : 'EMPTY') + ' api_key=' + (apiKey ? apiKey.slice(0,8) + '...' : 'EMPTY') + ' session_valid=' + hasSession + ' apikey_valid=' + hasApiKey + ' PASSWORD_SET=' + !!PASSWORD + ' sessions_count=' + sessions.size);
+  next();
+});
+
 app.post('/api/login', (req, res) => {
   if (!PASSWORD) return res.json({ ok: true, token: 'no-auth' });
   if (req.body.password === PASSWORD) {
@@ -1025,6 +1035,6 @@ app.get('/api/diag/job-board-rwtest', (req, res) => {
   } catch(e) { res.json({ ok: false, error: e.message, stack: e.stack }); }
 });
 
-app.get('/health', (req, res) => res.json({ ok: true, port: PORT, version: '7.9-diag', todayET: todayET() }));
+app.get('/health', (req, res) => res.json({ ok: true, port: PORT, version: '7.9-diag2', todayET: todayET() }));
 app.use(express.static(path.join(__dirname, 'public')));
 app.listen(PORT, '0.0.0.0', () => console.log('HopeSpot v7.8 listening on port ' + PORT));
