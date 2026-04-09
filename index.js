@@ -47,11 +47,26 @@ function saveApplications(a) {
   try { fs.writeFileSync(APPLICATIONS_PATH, JSON.stringify(a, null, 2)); return true; } catch(e) { console.error('[saveApplications]', e.message); return false; }
 }
 function loadJobBoardLeads() {
-  try { if (fs.existsSync(JOB_BOARD_PATH)) return JSON.parse(fs.readFileSync(JOB_BOARD_PATH, 'utf8')); } catch(e) {}  
+  try {
+    if (fs.existsSync(JOB_BOARD_PATH)) {
+      const data = JSON.parse(fs.readFileSync(JOB_BOARD_PATH, 'utf8'));
+      return data;
+    }
+  } catch(e) { console.error('[loadJobBoardLeads] ERROR:', e.message); }
+  console.warn('[loadJobBoardLeads] returning empty array — file missing or unreadable');
   return [];
 }
 function saveJobBoardLeads(l) {
-  try { fs.writeFileSync(JOB_BOARD_PATH, JSON.stringify(l, null, 2)); return true; } catch(e) { console.error('[saveJobBoardLeads]', e.message); return false; }
+  try {
+    fs.writeFileSync(JOB_BOARD_PATH, JSON.stringify(l, null, 2));
+    // Verify write by reading back
+    const verify = JSON.parse(fs.readFileSync(JOB_BOARD_PATH, 'utf8'));
+    if (verify.length !== l.length) {
+      console.error('[saveJobBoardLeads] VERIFY FAILED: wrote', l.length, 'but read back', verify.length);
+      return false;
+    }
+    return true;
+  } catch(e) { console.error('[saveJobBoardLeads] ERROR:', e.message); return false; }
 }
 function loadNetworking() {
   try { if (fs.existsSync(NETWORKING_PATH)) return JSON.parse(fs.readFileSync(NETWORKING_PATH, 'utf8')); } catch(e) {}  
@@ -72,8 +87,16 @@ function saveCalConfig(c) { try { fs.writeFileSync(CAL_CONFIG_PATH, JSON.stringi
 // the latest committed state.
 // ================================================================
 let _jobBoardLock = Promise.resolve();
+let _lockSeq = 0;
 function withJobBoardLock(fn) {
-  _jobBoardLock = _jobBoardLock.then(fn).catch(e => console.error('[jobBoardLock]', e));
+  const seq = ++_lockSeq;
+  console.log('[LOCK] queued seq=%d', seq);
+  _jobBoardLock = _jobBoardLock.then(() => {
+    console.log('[LOCK] executing seq=%d', seq);
+    return fn();
+  }).catch(e => {
+    console.error('[LOCK] ERROR seq=%d:', seq, e);
+  });
   return _jobBoardLock;
 }
 
@@ -700,32 +723,42 @@ app.get('/api/job-board', requireAuth, (req, res) => {
 
 // PATCH single lead — serialized through write lock.
 app.patch('/api/job-board/:id', requireAuth, (req, res) => {
+  console.log('[PATCH /api/job-board/:id] id=%s body=%j', req.params.id, req.body);
   withJobBoardLock(() => {
-    const leads = loadJobBoardLeads(), idx = leads.findIndex(l => l.id === req.params.id);
-    if (idx < 0) { res.status(404).json({ error: 'Not found' }); return; }
+    const leads = loadJobBoardLeads();
+    console.log('[PATCH lock] loaded %d leads, searching for id=%s', leads.length, req.params.id);
+    const idx = leads.findIndex(l => l.id === req.params.id);
+    if (idx < 0) {
+      console.warn('[PATCH lock] NOT FOUND id=%s — lead IDs sample: %j', req.params.id, leads.slice(0,3).map(l => l.id));
+      res.status(404).json({ error: 'Not found' });
+      return;
+    }
+    console.log('[PATCH lock] found at idx=%d, current status=%s, setting to %s', idx, leads[idx].status, req.body.status);
     leads[idx] = { ...leads[idx], ...req.body, id: leads[idx].id };
     const saved = saveJobBoardLeads(leads);
+    console.log('[PATCH lock] save result=%s', saved);
     if (!saved) { res.status(500).json({ error: 'Save failed' }); return; }
     res.json(leads[idx]);
   });
 });
 
 // BATCH UPDATE — updates multiple leads in one atomic write.
-// The client sends all pending skips here instead of firing N concurrent PATCHes.
-// Body: { updates: [{ id, status }, ...] }
 app.post('/api/job-board/batch-update', requireAuth, (req, res) => {
   const updates = req.body.updates;
+  console.log('[BATCH-UPDATE] received %d updates: %j', Array.isArray(updates) ? updates.length : 0, updates);
   if (!Array.isArray(updates) || !updates.length) return res.status(400).json({ error: 'updates array required' });
   withJobBoardLock(() => {
     const leads = loadJobBoardLeads();
     const results = [];
     updates.forEach(({ id, status, ...rest }) => {
       const idx = leads.findIndex(l => l.id === id);
-      if (idx < 0) return;
+      if (idx < 0) { console.warn('[BATCH-UPDATE] id=%s NOT FOUND', id); return; }
+      console.log('[BATCH-UPDATE] updating idx=%d id=%s from %s to %s', idx, id, leads[idx].status, status);
       leads[idx] = { ...leads[idx], ...rest, status, id: leads[idx].id };
       results.push(leads[idx]);
     });
     const saved = saveJobBoardLeads(leads);
+    console.log('[BATCH-UPDATE] save result=%s, updated=%d', saved, results.length);
     if (!saved) { res.status(500).json({ error: 'Save failed' }); return; }
     res.json({ ok: true, updated: results.length });
   });
@@ -734,10 +767,12 @@ app.post('/api/job-board/batch-update', requireAuth, (req, res) => {
 // SNAG — serialized through write lock.
 app.post('/api/job-board/snag', requireAuth, (req, res) => {
   const { lead_id } = req.body;
+  console.log('[SNAG] lead_id=%s', lead_id);
   if (!lead_id) return res.status(400).json({ error: 'lead_id required' });
   withJobBoardLock(() => {
     const leads = loadJobBoardLeads(), li = leads.findIndex(l => l.id === lead_id);
-    if (li < 0) { res.status(404).json({ error: 'Lead not found' }); return; }
+    console.log('[SNAG lock] loaded %d leads, findIndex=%d', leads.length, li);
+    if (li < 0) { console.warn('[SNAG lock] NOT FOUND lead_id=%s', lead_id); res.status(404).json({ error: 'Lead not found' }); return; }
     const lead = leads[li], today = todayET(), fd = new Date(today + 'T12:00:00Z');
     fd.setDate(fd.getDate() + 7);
     const newApp = { id: randomUUID(), company: lead.organization||lead.title, role: lead.title, applied_date: today, status: 'queued', source_url: lead.url, notion_url: '', drive_url: '', follow_up_date: fd.toISOString().split('T')[0], last_activity: today, notes: 'Snagged from '+(lead.source_label||lead.source)+(lead.location?' \u00b7 '+lead.location:''), activity: [{ date: today, type: 'queued', note: 'Snagged from '+(lead.source_label||lead.source) }] };
@@ -946,6 +981,31 @@ app.post('/api/sync', requireAuth, (req, res) => {
   res.json({ ok: true, changed });
 });
 
-app.get('/health', (req, res) => res.json({ ok: true, port: PORT, version: '7.8', todayET: todayET() }));
+// Diagnostic: test job board read-modify-write cycle
+app.get('/api/diag/job-board-rwtest', (req, res) => {
+  try {
+    const leads = loadJobBoardLeads();
+    const statusCounts = {};
+    leads.forEach(l => { statusCounts[l.status] = (statusCounts[l.status]||0) + 1; });
+    const firstNew = leads.find(l => l.status === 'new');
+    if (!firstNew) return res.json({ ok: false, error: 'No new leads to test with', total: leads.length, statusCounts, path: JOB_BOARD_PATH });
+    // Test write: mark it reviewed
+    const testId = firstNew.id;
+    const idx = leads.findIndex(l => l.id === testId);
+    leads[idx] = { ...leads[idx], status: 'reviewed', _diag_test: true };
+    const writeOk = saveJobBoardLeads(leads);
+    // Read back
+    const readback = loadJobBoardLeads();
+    const readbackLead = readback.find(l => l.id === testId);
+    const readbackStatus = readbackLead ? readbackLead.status : 'LEAD_MISSING';
+    // Revert
+    const revertLeads = loadJobBoardLeads();
+    const ri = revertLeads.findIndex(l => l.id === testId);
+    if (ri >= 0) { delete revertLeads[ri]._diag_test; revertLeads[ri].status = 'new'; saveJobBoardLeads(revertLeads); }
+    res.json({ ok: true, testId, writeOk, readbackStatus, persisted: readbackStatus === 'reviewed', total: leads.length, statusCounts, path: JOB_BOARD_PATH, fileExists: fs.existsSync(JOB_BOARD_PATH), fileSizeBytes: fs.existsSync(JOB_BOARD_PATH) ? fs.statSync(JOB_BOARD_PATH).size : 0 });
+  } catch(e) { res.json({ ok: false, error: e.message, stack: e.stack }); }
+});
+
+app.get('/health', (req, res) => res.json({ ok: true, port: PORT, version: '7.9-diag', todayET: todayET() }));
 app.use(express.static(path.join(__dirname, 'public')));
 app.listen(PORT, '0.0.0.0', () => console.log('HopeSpot v7.8 listening on port ' + PORT));
