@@ -43,12 +43,16 @@ function loadApplications() {
   try { if (fs.existsSync(APPLICATIONS_PATH)) return JSON.parse(fs.readFileSync(APPLICATIONS_PATH, 'utf8')); } catch(e) {}  
   return [];
 }
-function saveApplications(a) { try { fs.writeFileSync(APPLICATIONS_PATH, JSON.stringify(a, null, 2)); } catch(e) {} }
+function saveApplications(a) {
+  try { fs.writeFileSync(APPLICATIONS_PATH, JSON.stringify(a, null, 2)); return true; } catch(e) { console.error('[saveApplications]', e.message); return false; }
+}
 function loadJobBoardLeads() {
   try { if (fs.existsSync(JOB_BOARD_PATH)) return JSON.parse(fs.readFileSync(JOB_BOARD_PATH, 'utf8')); } catch(e) {}  
   return [];
 }
-function saveJobBoardLeads(l) { try { fs.writeFileSync(JOB_BOARD_PATH, JSON.stringify(l, null, 2)); } catch(e) {} }
+function saveJobBoardLeads(l) {
+  try { fs.writeFileSync(JOB_BOARD_PATH, JSON.stringify(l, null, 2)); return true; } catch(e) { console.error('[saveJobBoardLeads]', e.message); return false; }
+}
 function loadNetworking() {
   try { if (fs.existsSync(NETWORKING_PATH)) return JSON.parse(fs.readFileSync(NETWORKING_PATH, 'utf8')); } catch(e) {}  
   return [];
@@ -471,7 +475,7 @@ setInterval(() => {
 
 setTimeout(bootCheck, 3000);
 setTimeout(bootSeedApplications, 4000);
-console.log(`HopeSpot v7.6 \u2014 seeds:${readSeed('firms').length}f/${readSeed('ceos').length}c/${readSeed('vcs').length}v`);
+console.log(`HopeSpot v7.7 \u2014 seeds:${readSeed('firms').length}f/${readSeed('ceos').length}c/${readSeed('vcs').length}v`);
 
 const sessions = new Set();
 function requireAuth(req, res, next) {
@@ -672,7 +676,6 @@ app.post('/api/applications/batch-packages', requireAuth, async (req, res) => {
       try {
         console.log(`[batch-packages] Generating cover letter for ${appRec.company} \u2014 ${appRec.role}`);
 
-        // Try to fetch the JD. If it fails (e.g. LinkedIn blocks scraping), fall back to role/company info.
         let jdText = await fetchJobDescription(appRec.source_url);
         if (!jdText || jdText.length < 50) {
           console.log(`[batch-packages] JD unavailable for ${appRec.company} (likely LinkedIn/blocked) \u2014 using role info only`);
@@ -686,8 +689,6 @@ app.post('/api/applications/batch-packages', requireAuth, async (req, res) => {
           continue;
         }
 
-        // Save the cover letter text to the application record.
-        // Drive package creation is separate (only if DRIVE_WEBHOOK_URL is set and source_url is fetchable).
         const allApps = loadApplications();
         const idx = allApps.findIndex(a => a.id === appRec.id);
         if (idx >= 0) {
@@ -695,7 +696,6 @@ app.post('/api/applications/batch-packages', requireAuth, async (req, res) => {
           allApps[idx].cover_letter_text = coverLetter;
           allApps[idx].last_activity = today;
 
-          // Attempt Drive package only if we have a real JD (non-LinkedIn sources)
           if (webhookUrl && appRec.source_url && !appRec.drive_url) {
             try {
               const response = await postToAppsScript(webhookUrl, {
@@ -763,17 +763,27 @@ app.post('/api/create-drive-package', requireAuth, async (req, res) => {
 });
 
 // --- JOB BOARD ---
+// GET: returns only 'new' leads by default.
+// Skipped ('reviewed') and snagged leads are excluded from the default view.
+// This means a skipped lead can never come back through a re-render.
 app.get('/api/job-board', requireAuth, (req, res) => {
   const leads = loadJobBoardLeads(), { status } = req.query;
-  const filtered = status ? leads.filter(l => l.status === status) : leads.filter(l => l.status !== 'snagged');
+  const filtered = status ? leads.filter(l => l.status === status) : leads.filter(l => l.status === 'new');
   res.json(filtered.sort((a,b) => (b.fit_score - a.fit_score) || b.date_found.localeCompare(a.date_found)));
 });
+
+// PATCH: update a lead (e.g., skip to 'reviewed').
+// Returns 500 if the save fails so the client can keep the lead hidden.
 app.patch('/api/job-board/:id', requireAuth, (req, res) => {
   const leads = loadJobBoardLeads(), idx = leads.findIndex(l => l.id === req.params.id);
   if (idx < 0) return res.status(404).json({ error: 'Not found' });
-  leads[idx] = { ...leads[idx], ...req.body, id: leads[idx].id }; saveJobBoardLeads(leads);
+  leads[idx] = { ...leads[idx], ...req.body, id: leads[idx].id };
+  const saved = saveJobBoardLeads(leads);
+  if (!saved) return res.status(500).json({ error: 'Failed to save — data directory may not be writable' });
   res.json(leads[idx]);
 });
+
+// SNAG: create an application from a job board lead.
 app.post('/api/job-board/snag', requireAuth, (req, res) => {
   const { lead_id } = req.body;
   if (!lead_id) return res.status(400).json({ error: 'lead_id required' });
@@ -781,14 +791,16 @@ app.post('/api/job-board/snag', requireAuth, (req, res) => {
   if (li < 0) return res.status(404).json({ error: 'Lead not found' });
   const lead = leads[li], today = todayET(), fd = new Date(today + 'T12:00:00Z');
   fd.setDate(fd.getDate() + 7);
-  const newApp = { id: randomUUID(), company: lead.organization||'Unknown', role: lead.title, applied_date: today, status: 'queued', source_url: lead.url, notion_url: '', drive_url: '', follow_up_date: fd.toISOString().split('T')[0], last_activity: today, notes: 'Snagged from '+(lead.source_label||lead.source)+(lead.location?' \u00b7 '+lead.location:''), activity: [{ date: today, type: 'queued', note: 'Snagged from '+(lead.source_label||lead.source) }] };
-  const apps = loadApplications(); apps.push(newApp); saveApplications(apps);
-  leads[li].status = 'snagged'; leads[li].snagged_app_id = newApp.id; saveJobBoardLeads(leads);
+  const newApp = { id: randomUUID(), company: lead.organization||lead.title||'Unknown', role: lead.title, applied_date: today, status: 'queued', source_url: lead.url, notion_url: '', drive_url: '', follow_up_date: fd.toISOString().split('T')[0], last_activity: today, notes: 'Snagged from '+(lead.source_label||lead.source)+(lead.location?' \u00b7 '+lead.location:''), activity: [{ date: today, type: 'queued', note: 'Snagged from '+(lead.source_label||lead.source) }] };
+  const apps = loadApplications(); apps.push(newApp);
+  const appSaved = saveApplications(apps);
+  if (!appSaved) return res.status(500).json({ error: 'Failed to save application — data directory may not be writable' });
+  leads[li].status = 'snagged'; leads[li].snagged_app_id = newApp.id;
+  saveJobBoardLeads(leads);
   res.json({ ok: true, application: newApp });
 });
 
-// CHANGE 3: Crawl is now async — responds immediately so the button doesn't freeze.
-// Results appear when user navigates away and back to Job Board.
+// CRAWL: async — responds immediately, runs in background.
 app.post('/api/job-board/crawl', requireAuth, (req, res) => {
   res.json({ ok: true, newLeads: null, message: 'Crawl running in background. Come back in 2-3 minutes and the Job Board will have new leads.' });
   crawlJobBoards().then(result => {
@@ -942,9 +954,19 @@ app.get('/api/debug', (req, res) => {
   let dueCount = 0;
   PILLARS.forEach(track => { getDB(track).forEach(item => { if (item.status === 'contacted' && item.followup_date && item.followup_date <= today && item.is_job_search !== false) dueCount++; }); });
   loadDynamic().forEach(item => { if (item.status === 'contacted' && item.followup_date && item.followup_date <= today && item.is_job_search !== false) dueCount++; });
+
+  // Data directory write test
+  let dataWritable = false;
+  try {
+    const testPath = path.join(DATA_DIR, '.write_test');
+    fs.writeFileSync(testPath, 'ok');
+    fs.unlinkSync(testPath);
+    dataWritable = true;
+  } catch(e) { console.error('[debug write test]', e.message); }
+
   const apps = loadApplications(), jb = loadJobBoardLeads(), net = loadNetworking(), calCfg = loadCalConfig();
   const overdueSteps = net.filter(e=>!e.hidden).reduce((n, e) => n + (e.next_steps||[]).filter(ns => !ns.done && ns.due_date && ns.due_date <= today).length, 0);
-  res.json({ version: '7.6', seedCounts: { firms: readSeed('firms').length, ceos: readSeed('ceos').length, vcs: readSeed('vcs').length }, dynamicCount: loadDynamic().length, applicationCount: apps.length, applicationsByStatus: apps.reduce((acc,a) => { acc[a.status]=(acc[a.status]||0)+1; return acc; }, {}), applicationsWithDrive: apps.filter(a => a.drive_url).length, applicationsNeedPackage: apps.filter(a => a.status==='queued' && !a.drive_url).length, applicationsWithCoverLetter: apps.filter(a => a.cover_letter_text).length, jobBoardLeads: jb.length, jobBoardNew: jb.filter(l => l.status==='new').length, jobBoardSnagged: jb.filter(l => l.status==='snagged').length, networkingEvents: net.length, networkingVisible: net.filter(e=>!e.hidden).length, networkingHidden: net.filter(e=>e.hidden).length, networkingOverdueSteps: overdueSteps, calendarConfig: { setup_complete: calCfg.setup_complete, whitelisted_count: calCfg.whitelisted_calendar_ids.length }, driveConfigured: !!process.env.DRIVE_WEBHOOK_URL, anthropicConfigured: !!process.env.ANTHROPIC_API_KEY, overrideCounts: { firms: Object.keys(ov.firms||{}).length, ceos: Object.keys(ov.ceos||{}).length, vcs: Object.keys(ov.vcs||{}).length }, draftCounts: { firms: getDB('firms').filter(x=>x.status==='draft').length, ceos: getDB('ceos').filter(x=>x.status==='draft').length, vcs: getDB('vcs').filter(x=>x.status==='draft').length }, jobBoardSources: JOB_SOURCES.map(s=>s.name), locationFilter: { allow: LOCATION_ALLOW.source, deny_states: LOCATION_DENY_STATES.source }, dueCount, cronState: loadCronState(), todayET: today });
+  res.json({ version: '7.7', dataWritable, dataDir: DATA_DIR, seedCounts: { firms: readSeed('firms').length, ceos: readSeed('ceos').length, vcs: readSeed('vcs').length }, dynamicCount: loadDynamic().length, applicationCount: apps.length, applicationsByStatus: apps.reduce((acc,a) => { acc[a.status]=(acc[a.status]||0)+1; return acc; }, {}), applicationsWithDrive: apps.filter(a => a.drive_url).length, applicationsNeedPackage: apps.filter(a => a.status==='queued' && !a.drive_url).length, applicationsWithCoverLetter: apps.filter(a => a.cover_letter_text).length, jobBoardLeads: jb.length, jobBoardNew: jb.filter(l => l.status==='new').length, jobBoardReviewed: jb.filter(l => l.status==='reviewed').length, jobBoardSnagged: jb.filter(l => l.status==='snagged').length, networkingEvents: net.length, networkingVisible: net.filter(e=>!e.hidden).length, networkingHidden: net.filter(e=>e.hidden).length, networkingOverdueSteps: overdueSteps, calendarConfig: { setup_complete: calCfg.setup_complete, whitelisted_count: calCfg.whitelisted_calendar_ids.length }, driveConfigured: !!process.env.DRIVE_WEBHOOK_URL, anthropicConfigured: !!process.env.ANTHROPIC_API_KEY, overrideCounts: { firms: Object.keys(ov.firms||{}).length, ceos: Object.keys(ov.ceos||{}).length, vcs: Object.keys(ov.vcs||{}).length }, draftCounts: { firms: getDB('firms').filter(x=>x.status==='draft').length, ceos: getDB('ceos').filter(x=>x.status==='draft').length, vcs: getDB('vcs').filter(x=>x.status==='draft').length }, jobBoardSources: JOB_SOURCES.map(s=>s.name), locationFilter: { allow: LOCATION_ALLOW.source, deny_states: LOCATION_DENY_STATES.source }, dueCount, cronState: loadCronState(), todayET: today });
 });
 
 const SECTOR_EXCLUDE_FROM_TABLE = new Set(['network']);
@@ -1041,6 +1063,6 @@ app.post('/api/sync', requireAuth, (req, res) => {
   res.json({ ok: true, changed });
 });
 
-app.get('/health', (req, res) => res.json({ ok: true, port: PORT, version: '7.6', cronState: loadCronState(), todayET: todayET() }));
+app.get('/health', (req, res) => res.json({ ok: true, port: PORT, version: '7.7', cronState: loadCronState(), todayET: todayET() }));
 app.use(express.static(path.join(__dirname, 'public')));
-app.listen(PORT, '0.0.0.0', () => console.log('HopeSpot v7.6 listening on port ' + PORT));
+app.listen(PORT, '0.0.0.0', () => console.log('HopeSpot v7.7 listening on port ' + PORT));
