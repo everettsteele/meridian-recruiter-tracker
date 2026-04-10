@@ -458,8 +458,10 @@ function scoreTitle(title) {
 }
 
 async function crawlJobBoards() {
+  diagLog('CRAWL starting...');
   const existing = loadJobBoardLeads();
   const existingUrls = new Set(existing.map(l => l.url));
+  diagLog('CRAWL existing leads=' + existing.length + ' unique URLs=' + existingUrls.size);
   const allNew = [];
   const sourceStats = {};
 
@@ -538,6 +540,7 @@ async function crawlJobBoards() {
     }
 
     sourceStats[source.name] = { urlsFound, urlsAttempted, added: srcLeads.length, filteredByLocation, filteredByScore };
+    diagLog('CRAWL ' + source.name + ': found=' + urlsFound + ' attempted=' + urlsAttempted + ' added=' + srcLeads.length + ' locFiltered=' + filteredByLocation + ' scoreFiltered=' + filteredByScore);
     allNew.push(...srcLeads);
   }
 
@@ -551,6 +554,7 @@ async function crawlJobBoards() {
       });
     });
   }
+  diagLog('CRAWL complete. Total new leads: ' + allNew.length + ' | Stats: ' + JSON.stringify(sourceStats));
   return { leads: allNew, sourceStats };
 }
 
@@ -742,51 +746,72 @@ app.post('/api/applications/batch-packages', requireAuth, async (req, res) => {
   const apps = loadApplications();
   const targets = apps.filter(a => a.status === 'queued' && (!a.cover_letter_text || !a.drive_url));
   if (!targets.length) return res.json({ ok: true, built: 0, message: 'All queued applications already have complete packages' });
+  diagLog('BATCH-PKG starting for ' + targets.length + ' apps: ' + targets.map(a => a.company).join(', '));
   res.json({ ok: true, queued: targets.length, message: `Building packages for ${targets.length} applications in background. Check back in 2-3 minutes.` });
   setImmediate(async () => {
     let built = 0, failed = 0;
     for (const appRec of targets) {
       try {
+        diagLog('BATCH-PKG processing: ' + appRec.company + ' (id=' + appRec.id + ')');
         const allApps = loadApplications();
         const idx = allApps.findIndex(a => a.id === appRec.id);
-        if (idx < 0) continue;
+        if (idx < 0) { diagLog('BATCH-PKG app not found: ' + appRec.id); continue; }
         const today = todayET();
         let coverLetter = allApps[idx].cover_letter_text;
         let jdText = '';
         // Phase 1: Generate cover letter if missing
         if (!coverLetter) {
+          diagLog('BATCH-PKG generating cover letter for ' + appRec.company);
           jdText = await fetchJobDescription(appRec.source_url);
           if (!jdText || jdText.length < 50) jdText = `Position: ${appRec.role} at ${appRec.company}. ${appRec.notes || ''}`.trim();
           coverLetter = await generateCoverLetterForApp(appRec, jdText);
-          if (!coverLetter || coverLetter.length < 50) { failed++; continue; }
+          if (!coverLetter || coverLetter.length < 50) { diagLog('BATCH-PKG cover letter generation failed for ' + appRec.company); failed++; continue; }
           allApps[idx].cover_letter_text = coverLetter;
           allApps[idx].last_activity = today;
+          diagLog('BATCH-PKG cover letter generated for ' + appRec.company + ' (' + coverLetter.length + ' chars)');
+        } else {
+          diagLog('BATCH-PKG cover letter exists for ' + appRec.company);
         }
         // Phase 2: Select resume variant + create Drive folder if missing
-        if (webhookUrl && !allApps[idx].drive_url) {
+        if (!allApps[idx].drive_url) {
           if (!jdText) {
             jdText = await fetchJobDescription(appRec.source_url);
             if (!jdText || jdText.length < 50) jdText = `Position: ${appRec.role} at ${appRec.company}. ${appRec.notes || ''}`.trim();
           }
+          diagLog('BATCH-PKG selecting variant for ' + appRec.company + ' (jd=' + jdText.length + ' chars)');
           const variant = await selectResumeVariant(appRec, jdText);
           allApps[idx].resume_variant = variant;
-          console.log(`[batch-packages] ${appRec.company}: variant=${variant}`);
-          try {
-            const response = await postToAppsScript(webhookUrl, { folderName: `${appRec.company} - ${appRec.role}`, variant, coverLetterText: coverLetter, company: appRec.company, role: appRec.role });
-            const text = await response.text();
-            let result; try { result = JSON.parse(text); } catch(e) { result = null; }
-            if (result && result.ok) {
-              const folderUrl = result.folderUrl || result.driveUrl || result.url || result.folder_url || '';
-              if (folderUrl) { allApps[idx].drive_url = folderUrl; allApps[idx].drive_folder_id = result.folderId || ''; (allApps[idx].activity = allApps[idx].activity||[]).push({ date: today, type: 'package_created', note: variant + ' package: ' + folderUrl }); }
-            }
-          } catch(driveErr) { console.log(`[batch-packages] Drive error for ${appRec.company}: ${driveErr.message}`); }
+          diagLog('BATCH-PKG variant=' + variant + ' for ' + appRec.company + ', calling webhook...');
+          if (!webhookUrl) { diagLog('BATCH-PKG NO WEBHOOK URL'); } else {
+            try {
+              const response = await postToAppsScript(webhookUrl, { folderName: `${appRec.company} - ${appRec.role}`, variant, coverLetterText: coverLetter, company: appRec.company, role: appRec.role });
+              const text = await response.text();
+              diagLog('BATCH-PKG webhook response for ' + appRec.company + ': ' + text.slice(0, 300));
+              let result; try { result = JSON.parse(text); } catch(e) { result = null; }
+              if (result && result.ok) {
+                const folderUrl = result.folderUrl || result.driveUrl || result.url || result.folder_url || '';
+                if (folderUrl) {
+                  allApps[idx].drive_url = folderUrl;
+                  allApps[idx].drive_folder_id = result.folderId || '';
+                  (allApps[idx].activity = allApps[idx].activity||[]).push({ date: today, type: 'package_created', note: variant + ' package: ' + folderUrl });
+                  diagLog('BATCH-PKG drive folder created for ' + appRec.company + ': ' + folderUrl);
+                } else {
+                  diagLog('BATCH-PKG webhook ok but no folderUrl in response for ' + appRec.company);
+                }
+              } else {
+                diagLog('BATCH-PKG webhook failed for ' + appRec.company + ': ' + (result ? JSON.stringify(result) : 'non-JSON response'));
+              }
+            } catch(driveErr) { diagLog('BATCH-PKG webhook error for ' + appRec.company + ': ' + driveErr.message); }
+          }
+        } else {
+          diagLog('BATCH-PKG drive_url exists for ' + appRec.company + ': ' + allApps[idx].drive_url);
         }
         saveApplications(allApps);
         built++;
         await new Promise(r => setTimeout(r, 2000));
-      } catch(err) { console.error(`[batch-packages] Error for ${appRec.company}: ${err.message}`); failed++; }
+      } catch(err) { diagLog('BATCH-PKG EXCEPTION for ' + appRec.company + ': ' + err.message); failed++; }
     }
-    console.log(`[batch-packages] Done. Built: ${built}, Failed: ${failed}`);
+    diagLog('BATCH-PKG complete. Built: ' + built + ', Failed: ' + failed);
   });
 });
 
