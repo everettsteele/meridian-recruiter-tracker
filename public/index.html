@@ -13,6 +13,26 @@
 <body>
 
 <div id="toast" class="toast"></div>
+<div id="shortcut-palette" class="modal-overlay" style="display:none" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts" onclick="if(event.target===this)toggleShortcuts()">
+  <div class="modal" style="max-width:360px">
+    <div class="modal-header">
+      <div class="modal-title">Keyboard Shortcuts</div>
+      <button class="modal-close" onclick="toggleShortcuts()" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body" style="padding:16px 20px">
+      <div style="display:flex;flex-direction:column;gap:8px;font-size:13px">
+        <div style="display:flex;justify-content:space-between"><span style="color:#6B7280">Search</span><kbd style="background:#F3F4F6;padding:2px 8px;border-radius:4px;font-size:11px;font-family:monospace;border:1px solid #E5E7EB">Ctrl+K</kbd></div>
+        <div style="display:flex;justify-content:space-between"><span style="color:#6B7280">Close modal / palette</span><kbd style="background:#F3F4F6;padding:2px 8px;border-radius:4px;font-size:11px;font-family:monospace;border:1px solid #E5E7EB">Esc</kbd></div>
+        <div style="display:flex;justify-content:space-between"><span style="color:#6B7280">Show shortcuts</span><kbd style="background:#F3F4F6;padding:2px 8px;border-radius:4px;font-size:11px;font-family:monospace;border:1px solid #E5E7EB">?</kbd></div>
+        <div style="display:flex;justify-content:space-between"><span style="color:#6B7280">Dashboard</span><kbd style="background:#F3F4F6;padding:2px 8px;border-radius:4px;font-size:11px;font-family:monospace;border:1px solid #E5E7EB">g d</kbd></div>
+        <div style="display:flex;justify-content:space-between"><span style="color:#6B7280">Queue</span><kbd style="background:#F3F4F6;padding:2px 8px;border-radius:4px;font-size:11px;font-family:monospace;border:1px solid #E5E7EB">g q</kbd></div>
+        <div style="display:flex;justify-content:space-between"><span style="color:#6B7280">Applications</span><kbd style="background:#F3F4F6;padding:2px 8px;border-radius:4px;font-size:11px;font-family:monospace;border:1px solid #E5E7EB">g a</kbd></div>
+        <div style="display:flex;justify-content:space-between"><span style="color:#6B7280">Job Board</span><kbd style="background:#F3F4F6;padding:2px 8px;border-radius:4px;font-size:11px;font-family:monospace;border:1px solid #E5E7EB">g j</kbd></div>
+        <div style="display:flex;justify-content:space-between"><span style="color:#6B7280">Refresh</span><kbd style="background:#F3F4F6;padding:2px 8px;border-radius:4px;font-size:11px;font-family:monospace;border:1px solid #E5E7EB">r</kbd></div>
+      </div>
+    </div>
+  </div>
+</div>
 <div id="sidebar-overlay" class="sidebar-overlay" onclick="closeSidebar()"></div>
 
 <div id="log-modal" class="modal-overlay" style="display:none" role="dialog" aria-modal="true" aria-label="Log Follow-Up" onclick="if(event.target===this)closeLogModal()">
@@ -267,7 +287,7 @@ async function loadAll(){
     const [fr,cr,vr,sr,dr]=await Promise.all([fetch('/api/firms',{headers:h}),fetch('/api/ceos',{headers:h}),fetch('/api/vcs',{headers:h}),fetch('/api/stats',{headers:h}),fetch('/api/due',{headers:h})]);
     if(fr.status===401||cr.status===401){localStorage.removeItem(STORAGE_KEY);if(!API_KEY_MODE){TOKEN='';showLogin('Session expired \u2014 sign in again.');return;}}
     [DATA,CEOs,VCs,STATS,DUE]=await Promise.all([fr.json(),cr.json(),vr.json(),sr.json(),dr.json()]);
-  }catch(e){DATA=[];CEOs=[];VCs=[];STATS=null;DUE=[];}
+  }catch(e){DATA=[];CEOs=[];VCs=[];STATS=null;DUE=[];toast('Failed to load data. Check connection and refresh.');}
   updateBadges();renderCurrent();
 }
 
@@ -334,9 +354,9 @@ function renderCurrent(){
   if(TAB==='queue')renderQueue();
   else if(TAB==='dashboard')renderDashboard();
   else if(TAB==='applications')loadApps();
-  else if(TAB==='jobboard'){if(typeof renderJobBoard==='function')renderJobBoard();else document.getElementById('main-content').innerHTML='<div class="empty">Loading...</div>';}
-  else if(TAB==='events'){if(typeof renderNetworking==='function')renderNetworking();else document.getElementById('main-content').innerHTML='<div class="empty">Loading...</div>';}
-  else if(TAB==='netcontacts'){if(typeof renderNetworkingContacts==='function')renderNetworkingContacts();else document.getElementById('main-content').innerHTML='<div class="empty">Loading...</div>';}
+  else if(TAB==='jobboard'){if(typeof renderJobBoard==='function')renderJobBoard();else document.getElementById('main-content').innerHTML=skeleton(4);}
+  else if(TAB==='events'){if(typeof renderNetworking==='function')renderNetworking();else document.getElementById('main-content').innerHTML=skeleton(4);}
+  else if(TAB==='netcontacts'){if(typeof renderNetworkingContacts==='function')renderNetworkingContacts();else document.getElementById('main-content').innerHTML=skeleton(4);}
   else renderList();
 }
 
@@ -377,11 +397,11 @@ async function markSent(endpoint,id,btn){
 }
 
 function renderDashboard(){
-  document.getElementById('main-content').innerHTML='<div class="empty">Loading dashboard...</div>';
+  document.getElementById('main-content').innerHTML=skeleton(6);
 }
 
 function loadApps(){
-  document.getElementById('main-content').innerHTML='<div class="empty">Loading applications...</div>';
+  document.getElementById('main-content').innerHTML=skeleton(5);
 }
 
 function currentData(){return TAB==='ceos'?CEOs:TAB==='vcs'?VCs:DATA;}
@@ -434,11 +454,25 @@ async function save(tab,id){
   await fetch(ep+'/'+id,{method:'PATCH',headers:authHeaders(),body:JSON.stringify({notes,status,followup_date:followup||null})});
   await loadAll();
 }
+// Keyboard shortcut palette
+var _shortcutsVisible=false;
+function toggleShortcuts(){_shortcutsVisible=!_shortcutsVisible;var el=document.getElementById('shortcut-palette');if(el)el.style.display=_shortcutsVisible?'flex':'none';}
+var _gPressed=false,_gTimer=null;
 document.addEventListener('keydown',e=>{
-  if(e.key==='Escape'){hideChangelog();closeLogModal();}
+  if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.tagName==='SELECT')return;
+  if(e.key==='Escape'){hideChangelog();closeLogModal();if(_shortcutsVisible)toggleShortcuts();}
   if((e.metaKey||e.ctrlKey)&&e.key==='k'){e.preventDefault();document.querySelector('.search-box')?.focus();}
+  if(e.key==='?'&&!e.metaKey&&!e.ctrlKey){e.preventDefault();toggleShortcuts();}
+  if(e.key==='r'&&!e.metaKey&&!e.ctrlKey){e.preventDefault();refreshData();}
+  if(e.key==='g'&&!e.metaKey&&!e.ctrlKey){_gPressed=true;clearTimeout(_gTimer);_gTimer=setTimeout(()=>{_gPressed=false;},500);return;}
+  if(_gPressed){
+    _gPressed=false;clearTimeout(_gTimer);
+    var map={d:'dashboard',q:'queue',a:'applications',j:'jobboard',r:'recruiters',c:'ceos',v:'vcs',e:'events',n:'netcontacts'};
+    if(map[e.key]){e.preventDefault();switchTab(map[e.key]);}
+  }
 });
 init();
+if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js').catch(()=>{});}
 </script>
 <script src="/apps.js?v=8.3"></script>
 </body>
