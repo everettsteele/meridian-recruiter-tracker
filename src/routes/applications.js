@@ -5,6 +5,7 @@ const { expensiveLimiter } = require('../middleware/security');
 const db = require('../db/store');
 const { todayET, diagLog } = require('../utils');
 const { generateCoverLetter, selectResumeVariant, fetchJobDescription, cleanCoverLetterText } = require('../services/anthropic');
+const { getResumeVariants } = require('../db/users');
 
 const router = Router();
 
@@ -164,11 +165,10 @@ router.post('/applications/batch-packages', requireAuth, expensiveLimiter, async
           jdText = await fetchJobDescription(appRec.source_url);
           if (!jdText || jdText.length < 50) jdText = `Position: ${appRec.role} at ${appRec.company}. ${appRec.notes || ''}`.trim();
 
-          // Use user's background for cover letter generation
-          coverLetter = await generateCoverLetter(
-            { ...appRec, userBackground: userProfile.backgroundText },
-            jdText
-          );
+          coverLetter = await generateCoverLetter(appRec, jdText, {
+            fullName: req.user.fullName,
+            backgroundText: userProfile.backgroundText,
+          });
           if (!coverLetter || coverLetter.length < 50) { failed++; continue; }
           await db.updateApplication(tenantId, appRec.id, { cover_letter_text: coverLetter, last_activity: today });
           await db.logUsage(tenantId, userId, 'cover_letter', 700, { company: appRec.company });
@@ -180,7 +180,11 @@ router.post('/applications/batch-packages', requireAuth, expensiveLimiter, async
             jdText = await fetchJobDescription(appRec.source_url);
             if (!jdText || jdText.length < 50) jdText = `Position: ${appRec.role} at ${appRec.company}. ${appRec.notes || ''}`.trim();
           }
-          const variant = await selectResumeVariant(appRec, jdText);
+          const userVariants = await getResumeVariants(userId);
+          const variant = await selectResumeVariant(appRec, jdText, {
+            fullName: req.user.fullName,
+            variants: userVariants,
+          });
           await db.updateApplication(tenantId, appRec.id, { resume_variant: variant });
           await db.logUsage(tenantId, userId, 'variant_select', 20, { company: appRec.company, variant });
 

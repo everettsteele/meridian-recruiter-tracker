@@ -1,6 +1,6 @@
 const { createHash } = require('crypto');
 const { diagLog, todayET } = require('../utils');
-const store = require('../data/store');
+const db = require('../db/store');
 
 const JOB_SOURCES = [
   { name: 'jewishjobs', label: 'JewishJobs', searches: ['https://www.jewishjobs.com/search/operations/-/-/true', 'https://www.jewishjobs.com/search/chief-operating-officer/-/-/true', 'https://www.jewishjobs.com/search/director-of-operations/-/-/true'], linkPattern: /href="((?:https?:\/\/(?:www\.)?jewishjobs\.com)?\/(?:job|listing|jobs|position)s?(?:-openings?)?(?:\/|$)[^"#?\s]{3,}?)"/gi, baseUrl: 'https://www.jewishjobs.com', maxPerSearch: 10 },
@@ -15,12 +15,27 @@ const LOCATION_DENY_STATES = /\bflorida\b|\btexas\b|\bcalifornia\b|\bnew\s*york\
 const LOCATION_DENY_ABBR = /,\s*(?:FL|TX|CA|NY|IL|PA|MD|VA|CO|WA|OR|NV|AZ|UT|MN|WI|MO|MI|IN|OH|KY|TN|NC|SC|CT|MA|NJ|NH|RI|VT|ME|AL|AR|AK|HI|ID|IA|KS|LA|MS|MT|NE|ND|NM|OK|SD|WV|WY|DC)\b/i;
 const LOCATION_DENY_CITIES = /\bphiladelphia\b|\bphilly\b|\bnew\s*york\b|\bnyc\b|\bbrooklyn\b|\bmanhattan\b|\bnew\s*jersey\b|\bchicago\b|\bboston\b|\bsan\s*francisco\b|\bseattle\b|\bdenver\b|\bmiami\b|\blos\s*angeles\b|\bportland\b|\bminneapolis\b|\bphoenix\b|\bdallas\b|\bhouston\b|\bnashville\b|\bcharlotte\b|\braleigh\b|washington[\s,]+d\.?c|\bbaltimore\b|\bpittsburgh\b|\bcleveland\b|\bdetroit\b|\bindianapolis\b|kansas\s*city|st\.?\s*louis|\bcolumbus,\s*oh\b|\bcincinnati\b|\bmemphis\b|\bomaha\b|\blas\s*vegas\b|\bsan\s*diego\b|\bsan\s*antonio\b|\bsan\s*jose\b|\btampa\b|\bjacksonville,\s*fl\b|\bmilwaukee\b|\bsacramento\b|salt\s*lake|\blouisville\b|\btucson\b|\baustin,\s*tx\b|\bfresno\b|\borlando\b|\bfort\s*lauderdale\b|\bjacksonville\b|\bboca\s*raton\b|\bst\.?\s*pete\b|\btallahassee\b/i;
 
-function passesLocationFilter(location) {
+// Default location filter (used when no user config)
+function passesLocationFilter(location, userConfig) {
   if (!location || location.trim().length < 2) return true;
-  if (LOCATION_ALLOW.test(location)) return true;
-  if (LOCATION_DENY_CITIES.test(location)) return false;
-  if (LOCATION_DENY_ABBR.test(location)) return false;
-  if (LOCATION_DENY_STATES.test(location)) return false;
+
+  // If user has custom allow/deny lists, use those
+  if (userConfig?.location_allow?.length) {
+    const allowRx = new RegExp(userConfig.location_allow.map(l => `\\b${l}\\b`).join('|'), 'i');
+    if (allowRx.test(location)) return true;
+  } else {
+    // Fallback: always allow remote + default allow list
+    if (LOCATION_ALLOW.test(location)) return true;
+  }
+
+  if (userConfig?.location_deny?.length) {
+    const denyRx = new RegExp(userConfig.location_deny.map(l => `\\b${l}\\b`).join('|'), 'i');
+    if (denyRx.test(location)) return false;
+  } else {
+    if (LOCATION_DENY_CITIES.test(location)) return false;
+    if (LOCATION_DENY_ABBR.test(location)) return false;
+    if (LOCATION_DENY_STATES.test(location)) return false;
+  }
   return true;
 }
 
@@ -58,7 +73,7 @@ function scoreTitle(title) {
 }
 
 // Crawl a single source with circuit breaker
-async function crawlSource(source, existingUrls) {
+async function crawlSource(source, existingUrls, userConfig) {
   const srcLeads = [];
   let urlsFound = 0, urlsAttempted = 0, filteredByLocation = 0, filteredByScore = 0;
   let consecutiveFailures = 0;
@@ -99,8 +114,9 @@ async function crawlSource(source, existingUrls) {
           const organization = orgM ? orgM[1].replace(/<[^>]+>/g, '').trim() : '';
           const location = extractLocation(jhtml);
           const { score, reasons } = scoreTitle(title);
-          if (score < 3) { filteredByScore++; await new Promise(r => setTimeout(r, 300)); continue; }
-          if (!passesLocationFilter(location)) { filteredByLocation++; await new Promise(r => setTimeout(r, 300)); continue; }
+          const minScore = userConfig?.min_score || 3;
+          if (score < minScore) { filteredByScore++; await new Promise(r => setTimeout(r, 300)); continue; }
+          if (!passesLocationFilter(location, userConfig)) { filteredByLocation++; await new Promise(r => setTimeout(r, 300)); continue; }
           srcLeads.push({
             id: source.name.slice(0, 2) + '-' + createHash('sha256').update(jobUrl).digest('hex').slice(0, 16),
             source: source.name, source_label: source.label,
@@ -119,16 +135,30 @@ async function crawlSource(source, existingUrls) {
   return { name: source.name, leads: srcLeads, stats: { urlsFound, urlsAttempted, added: srcLeads.length, filteredByLocation, filteredByScore } };
 }
 
-// Main crawl: run all sources in parallel
-async function crawlJobBoards() {
-  diagLog('CRAWL starting...');
-  const existing = await store.loadJobBoardLeads();
-  const existingUrls = new Set(existing.map(l => l.url));
-  diagLog('CRAWL existing leads=' + existing.length + ' unique URLs=' + existingUrls.size);
+// Main crawl: run all sources in parallel, scoped to a tenant
+// tenantId and userId are required for multi-tenant isolation
+async function crawlJobBoards(tenantId, userId) {
+  diagLog(`CRAWL starting for tenant=${tenantId} user=${userId}`);
 
-  // Run all sources in parallel
+  // Load user's job search config (if available)
+  let userConfig = null;
+  try {
+    userConfig = await db.getJobSearchConfig(userId);
+  } catch (e) { /* no config — use defaults */ }
+
+  // Filter sources by user's enabled list
+  const enabledSources = userConfig?.enabled_sources?.length
+    ? JOB_SOURCES.filter(s => userConfig.enabled_sources.includes(s.name))
+    : JOB_SOURCES;
+
+  // Get existing lead URLs for dedup
+  const allStatuses = await db.listJobBoardLeads(tenantId, null);
+  const existingUrls = new Set(allStatuses.map(l => l.url));
+  diagLog('CRAWL existing leads=' + allStatuses.length + ' unique URLs=' + existingUrls.size);
+
+  // Run all enabled sources in parallel
   const results = await Promise.allSettled(
-    JOB_SOURCES.map(source => crawlSource(source, existingUrls))
+    enabledSources.map(source => crawlSource(source, existingUrls, userConfig))
   );
 
   const allNew = [];
@@ -144,17 +174,14 @@ async function crawlJobBoards() {
     }
   }
 
+  // Insert new leads into database, scoped to tenant
   if (allNew.length > 0) {
-    const { withJobBoardLock } = require('../utils');
-    await new Promise(resolve => {
-      withJobBoardLock(async () => {
-        const all = await store.loadJobBoardLeads();
-        all.push(...allNew);
-        await store.saveJobBoardLeads(all);
-        resolve();
-      });
-    });
+    const inserted = await db.upsertJobBoardLeads(tenantId, allNew);
+    diagLog(`CRAWL inserted ${inserted} new leads into DB`);
   }
+
+  // Log usage
+  try { await db.logUsage(tenantId, userId, 'crawl', 0, { sources: enabledSources.length, newLeads: allNew.length }); } catch (e) {}
 
   diagLog('CRAWL complete. Total new leads: ' + allNew.length);
   return { leads: allNew, sourceStats };

@@ -10,7 +10,15 @@ function getClient() {
   return _client;
 }
 
-const COVER_LETTER_SYSTEM = `You are writing a cover letter for Everett Steele, a senior executive and veteran.
+// ================================================================
+// Build cover letter system prompt dynamically from user profile
+// ================================================================
+
+function buildCoverLetterSystemPrompt(userProfile) {
+  const name = userProfile.fullName || userProfile.full_name || 'the candidate';
+  const background = userProfile.backgroundText || userProfile.background_text || '';
+
+  return `You are writing a cover letter for ${name}.
 
 CRITICAL OUTPUT RULES:
 - Begin your response with the FIRST SENTENCE OF THE LETTER. Nothing else before it.
@@ -22,14 +30,38 @@ CRITICAL OUTPUT RULES:
 VOICE AND STYLE:
 - First person. Direct and declarative. No filler phrases. No "I am excited to" openings.
 - Start with a strong statement tied specifically to the role.
-
-EVERETT'S BACKGROUND:
-Veteran (US Army, Infantry Recon Platoon Leader, Baghdad). 3 successful exits as founder/CEO. SVP Operations at ChartRequest: scaled from $2M to $16M ARR, 40 to 180+ employees across 4 countries in under 3 years. Built full operating infrastructure: EOS, scorecards, OKRs, cross-functional accountability systems. Chief of Staff to Atlanta City Council/Mayor Andre Dickens. UX/Product Director at UpTogether (1.25M members). Forbes Disruptor in Logistics. ABC 40 Under 40. LEAD Atlanta Fellow. Currently building Meridian, an AI-native venture studio.
+${background ? `\n${name.split(' ')[0].toUpperCase()}'S BACKGROUND:\n${background}` : ''}
 
 FORMAT:
 3-4 paragraphs. Under 350 words. No sign-off needed. Output the letter text only.`;
+}
 
-const VARIANT_LABELS = {
+// ================================================================
+// Build variant selection prompt from user's resume variants
+// ================================================================
+
+function buildVariantPrompt(userName, variants, appRecord, jdText) {
+  const variantLines = variants.map(v => `- ${v.slug}: ${v.label}`).join('\n');
+  const slugs = variants.map(v => v.slug);
+
+  return `Based on this job description, pick the single best resume variant for ${userName} to use.
+
+VARIANTS:
+${variantLines}
+
+RULES:
+- If the JD uses "Integrator" language explicitly, pick the COO/operator-type variant.
+- If the title says "Chief of Staff", pick the chief-of-staff/partner-type variant.
+- For roles that fit two categories, default to the one matching the JD title.
+- Respond with ONLY a single word matching one of these slugs: ${slugs.join(', ')}. Nothing else.
+
+ROLE: ${appRecord.role} at ${appRecord.company}
+JOB DESCRIPTION:
+${jdText.slice(0, 2000)}`;
+}
+
+// Default variants for backwards compatibility (used when user has no custom variants)
+const DEFAULT_VARIANT_LABELS = {
   operator: 'Integrator/COO — EOS, scaling, building the operational machine',
   partner: 'Chief of Staff — right-hand to CEO, strategic ops, force multiplier',
   builder: 'VP/SVP Operations — multi-function ownership, revenue ops, GTM, cross-functional',
@@ -56,27 +88,26 @@ function cleanCoverLetterText(raw) {
   return text;
 }
 
-async function selectResumeVariant(appRecord, jdText) {
+// ================================================================
+// selectResumeVariant — now accepts user context
+// userContext: { fullName, variants: [{slug, label}] }
+// ================================================================
+
+async function selectResumeVariant(appRecord, jdText, userContext) {
   if (!process.env.ANTHROPIC_API_KEY) return 'operator';
+
+  // Determine available variants
+  const variants = userContext?.variants?.length
+    ? userContext.variants
+    : Object.entries(DEFAULT_VARIANT_LABELS).map(([slug, label]) => ({ slug, label }));
+
+  const defaultSlug = variants.find(v => v.is_default)?.slug || variants[0]?.slug || 'operator';
+  const validSlugs = new Set(variants.map(v => v.slug));
+  const userName = userContext?.fullName || 'the candidate';
+
   try {
     const client = getClient();
-    const prompt = `Based on this job description, pick the single best resume variant for Everett Steele to use.
-
-VARIANTS:
-- operator: Integrator/COO role. JD uses EOS, Integrator, or scaling context. Operator brought in to build the machine.
-- partner: Chief of Staff role. Right-hand-to-CEO, force multiplier, strategic ops, executive leverage.
-- builder: VP/SVP Operations role. Owns multiple functions, revenue ops, CS, GTM alignment, cross-functional accountability.
-- innovator: AI/Special Projects role. AI, automation, innovation, or explicit special initiatives scope.
-
-RULES:
-- If the JD uses "Integrator" language explicitly, always pick operator.
-- If the title says "Chief of Staff", pick partner.
-- For roles that fit two categories, default to the one matching the JD title.
-- Respond with ONLY the single word: operator, partner, builder, or innovator. Nothing else.
-
-ROLE: ${appRecord.role} at ${appRecord.company}
-JOB DESCRIPTION:
-${jdText.slice(0, 2000)}`;
+    const prompt = buildVariantPrompt(userName, variants, appRecord, jdText);
 
     const resp = await client.messages.create({
       model: 'claude-haiku-4-5-20251001',
@@ -84,22 +115,28 @@ ${jdText.slice(0, 2000)}`;
       messages: [{ role: 'user', content: prompt }],
     });
     const raw = (resp.content?.[0]?.text || '').trim().toLowerCase();
-    if (['operator', 'partner', 'builder', 'innovator'].includes(raw)) return raw;
-    return 'operator';
+    if (validSlugs.has(raw)) return raw;
+    return defaultSlug;
   } catch (e) {
     console.error('[selectResumeVariant]', e.message);
-    return 'operator';
+    return defaultSlug;
   }
 }
 
-async function generateCoverLetter(appRecord, jdText) {
+// ================================================================
+// generateCoverLetter — now accepts user profile for personalization
+// userProfile: { fullName, backgroundText, ... }
+// ================================================================
+
+async function generateCoverLetter(appRecord, jdText, userProfile) {
   const client = getClient();
+  const systemPrompt = buildCoverLetterSystemPrompt(userProfile || {});
   const prompt = `ROLE: ${appRecord.role} at ${appRecord.company}\n\nJOB DESCRIPTION:\n${jdText.slice(0, 3000)}\n\nNotes about this role: ${appRecord.notes || 'None'}\n\nWrite the cover letter now. Start immediately with the first sentence.`;
 
   const resp = await client.messages.create({
     model: 'claude-sonnet-4-6',
     max_tokens: 700,
-    system: [{ type: 'text', text: COVER_LETTER_SYSTEM, cache_control: { type: 'ephemeral' } }],
+    system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
     messages: [{ role: 'user', content: prompt }],
   });
   const raw = resp.content?.[0]?.text || '';
@@ -124,8 +161,8 @@ async function fetchJobDescription(url) {
 }
 
 module.exports = {
-  COVER_LETTER_SYSTEM,
-  VARIANT_LABELS,
+  buildCoverLetterSystemPrompt,
+  DEFAULT_VARIANT_LABELS,
   cleanCoverLetterText,
   selectResumeVariant,
   generateCoverLetter,
