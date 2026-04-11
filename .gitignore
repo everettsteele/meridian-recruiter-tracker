@@ -1,2 +1,8 @@
 node_modules/
 .env
+data/overrides.json
+data/cron_state.json
+data/dynamic_contacts.json
+data/job_board_leads.json
+data/networking.json
+data/cal_config.json
