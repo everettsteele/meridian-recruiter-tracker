@@ -32,6 +32,8 @@ app.use('/api', require('./routes/applications'));
 app.use('/api', require('./routes/jobboard'));
 app.use('/api/networking', require('./routes/networking'));
 app.use('/api', require('./routes/diagnostics'));
+app.use('/api/sse', require('./routes/sse'));
+app.use('/api/export', require('./routes/export'));
 
 // Morning sync endpoint — aggregates data from multiple domains
 const { requireAuth } = require('./middleware/auth');
