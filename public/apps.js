@@ -305,6 +305,19 @@ async function _batchBuildPackages(btn) {
     var r = await (await fetch('/api/applications/batch-packages', { method: 'POST', headers: _authFH() })).json();
     if (r.ok) {
       if (typeof toast === 'function') toast(r.message || 'Cover letters generating in background. Refresh Applications in 3 minutes.', 6000);
+      // SSE progress listener
+      var evtSrc = new EventSource('/api/sse/batch-progress?' + _authToken());
+      evtSrc.onmessage = function(e) {
+        try {
+          var data = JSON.parse(e.data);
+          if (data.type === 'complete') { evtSrc.close(); loadApps(); }
+          else if (data.type === 'progress' && typeof toast === 'function') {
+            toast(data.message || ('Processing ' + (data.current||'') + '/' + (data.total||'')), 4000);
+          }
+        } catch(err) {}
+      };
+      evtSrc.onerror = function() { evtSrc.close(); };
+      setTimeout(function() { evtSrc.close(); }, 300000);
     } else {
       if (typeof toast === 'function') toast('Error: ' + (r.error || 'Unknown error'));
     }
@@ -362,7 +375,7 @@ async function renderJobBoard() {
     if (r.status === 401) { document.getElementById('main-content').innerHTML = '<div class="empty">Auth error. Refresh the page.</div>'; return; }
     leads = await r.json();
     if (!Array.isArray(leads)) leads = [];
-  } catch(e) { leads = []; }
+  } catch(e) { leads = []; if (typeof toast === 'function') toast('Failed to load job board data'); }
 
   var newLeads = leads.filter(function(l){return l.status==='new';});
   var srcColors = { jewishjobs:'#2563eb', execthread:'#7c3aed', csnetwork:'#d97706', idealist:'#16a34a', builtinatlanta:'#0891b2' };
@@ -499,7 +512,7 @@ function _buildHiddenEventHtml(e) {
 }
 
 async function renderNetworking() {
-  try { _netData = await (await fetch('/api/networking/events', { headers: _authFH() })).json(); } catch(e) { _netData = []; }
+  try { _netData = await (await fetch('/api/networking/events', { headers: _authFH() })).json(); } catch(e) { _netData = []; if (typeof toast === 'function') toast('Failed to load networking data'); }
   var today = new Date().toISOString().split('T')[0];
   var visible = _netData.filter(function(e){return !e.hidden;});
   var hiddenEvts = _netData.filter(function(e){return e.hidden;});
@@ -553,7 +566,7 @@ async function unhideEvent(id) {
 }
 
 async function renderNetworkingContacts() {
-  try { _netData = await (await fetch('/api/networking/events', { headers: _authFH() })).json(); } catch(e) { _netData = []; }
+  try { _netData = await (await fetch('/api/networking/events', { headers: _authFH() })).json(); } catch(e) { _netData = []; if (typeof toast === 'function') toast('Failed to load contacts data'); }
   var contactMap = {};
   _netData.filter(function(e){return !e.hidden;}).forEach(function(e) {
     (e.contacts||[]).forEach(function(c) {
@@ -568,7 +581,7 @@ async function renderNetworkingContacts() {
     return '<tr style="border-bottom:1px solid #F3F4F6"><td style="padding:10px 0;font-weight:600;font-size:13px">'+esc(c.name)+'</td><td style="padding:10px 8px;font-size:12px;color:#6B7280">'+esc(c.company)+'</td><td style="padding:10px 8px;font-size:12px;color:#9CA3AF">'+esc(c.role)+'</td><td style="padding:10px 8px;font-family:monospace;font-size:11px;color:#F97316">'+esc(c.email)+'</td><td style="padding:10px 8px;font-size:11px;color:#9CA3AF">'+esc(c.latestDate)+'</td><td style="padding:10px 8px;font-size:11px;color:#6B7280">'+c.events.map(function(ev){return esc(ev.title);}).join(', ')+'</td></tr>';
   }).join('');
   document.getElementById('main-content').innerHTML =
-    '<div style="font-size:22px;font-weight:700;margin-bottom:4px">Networking Contacts</div>'
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px"><div style="font-size:22px;font-weight:700">Networking Contacts</div><button onclick="window.location.href=\'/api/export/networking?format=csv&\'+_authToken()" style="padding:9px 18px;background:#6b7280;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Export CSV</button></div>'
     +'<div style="font-size:13px;color:#9ca3af;margin-bottom:20px">'+contacts.length+' contacts from '+_netData.filter(function(e){return !e.hidden;}).length+' events</div>'
     +(contacts.length===0
       ? '<div style="text-align:center;padding:60px;color:#9CA3AF;background:#fff;border:1px solid #E5E7EB;border-radius:10px">No contacts yet.</div>'
