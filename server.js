@@ -9,6 +9,7 @@ const applicationRoutes = require('./src/routes/applications');
 const jobboardRoutes = require('./src/routes/jobboard');
 const networkingRoutes = require('./src/routes/networking');
 const diagnosticsRoutes = require('./src/routes/diagnostics');
+const googleRoutes = require('./src/routes/google');
 
 // Middleware
 const { helmetMiddleware, corsMiddleware, globalLimiter } = require('./src/middleware/security');
@@ -33,6 +34,7 @@ app.use('/api', applicationRoutes);
 app.use('/api', jobboardRoutes);
 app.use('/api/networking', networkingRoutes);
 app.use('/api', diagnosticsRoutes);
+app.use('/api/google', googleRoutes);
 
 // ================================================================
 // Static files
