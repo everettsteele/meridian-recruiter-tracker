@@ -12,7 +12,7 @@ export default function SettingsPage() {
       <ProfileSection profile={profile} updateProfile={updateProfile} toast={toast} />
       <PreferencesSection profile={profile} updateProfile={updateProfile} toast={toast} />
       <GoogleSection profile={profile} toast={toast} />
-      <ResumeSection profile={profile} />
+      <ResumeSection />
     </div>
   );
 }
@@ -352,26 +352,133 @@ function GoogleSection({ profile, toast }) {
   );
 }
 
-function ResumeSection({ profile }) {
-  const variants = profile?.resume_variants || profile?.preferences?.resume_variants || [];
+function ResumeSection() {
+  const [variants, setVariants] = useState([]);
+  const [uploading, setUploading] = useState(null);
+  const { toast } = useToast();
+
+  const loadVariants = async () => {
+    try {
+      const data = await api.get('/resumes');
+      setVariants(data);
+    } catch (e) {
+      console.error('Failed to load resumes:', e);
+    }
+  };
+
+  useEffect(() => { loadVariants(); }, []);
+
+  const handleUpload = async (slug, file) => {
+    if (!file || file.type !== 'application/pdf') {
+      toast('Please select a PDF file', 'error');
+      return;
+    }
+    setUploading(slug);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch(`/api/resumes/${slug}/upload`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${localStorage.getItem('hopespot_token')}` },
+        body: formData,
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Upload failed');
+      }
+      toast('Resume uploaded');
+      loadVariants();
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setUploading(null);
+    }
+  };
+
+  const handleRemove = async (slug) => {
+    try {
+      await api.del(`/resumes/${slug}/file`);
+      toast('Resume removed');
+      loadVariants();
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  };
+
+  const handleSetDefault = async (slug) => {
+    try {
+      await api.patch(`/resumes/${slug}/default`);
+      toast('Default updated');
+      loadVariants();
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  };
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-6">
       <h3 className="text-base font-semibold text-[#1F2D3D] mb-4">Resume Variants</h3>
+      <p className="text-xs text-gray-500 mb-4">
+        Upload a PDF for each positioning angle. The text is extracted and used as context for AI-generated cover letters.
+      </p>
       {variants.length > 0 ? (
-        <div className="space-y-2">
-          {variants.map((v, i) => (
+        <div className="space-y-3">
+          {variants.map((v) => (
             <div
-              key={i}
-              className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg"
+              key={v.slug}
+              className="py-3 px-4 bg-gray-50 rounded-lg"
             >
-              <div>
-                <span className="text-sm font-medium text-[#1F2D3D]">{v.label || v.slug}</span>
-                {v.slug && v.label && (
-                  <span className="ml-2 text-xs text-gray-400">{v.slug}</span>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-[#1F2D3D]">{v.label}</span>
+                  <span className="text-xs text-gray-400 bg-gray-200 px-1.5 py-0.5 rounded">{v.slug}</span>
+                  {v.is_default && (
+                    <span className="text-xs text-[#F97316] bg-[#F97316]/10 px-1.5 py-0.5 rounded font-medium">default</span>
+                  )}
+                </div>
+                {!v.is_default && v.filename && (
+                  <button
+                    onClick={() => handleSetDefault(v.slug)}
+                    className="text-xs text-gray-500 hover:text-[#F97316] cursor-pointer"
+                  >
+                    Set as default
+                  </button>
                 )}
               </div>
-              <span className="text-xs text-gray-400">Read-only</span>
+              {v.filename ? (
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-600">{v.filename}</span>
+                  <div className="flex items-center gap-3">
+                    <label className="text-xs text-blue-600 hover:text-blue-700 cursor-pointer">
+                      Replace
+                      <input
+                        type="file"
+                        accept=".pdf"
+                        className="hidden"
+                        onChange={(e) => handleUpload(v.slug, e.target.files[0])}
+                      />
+                    </label>
+                    <button
+                      onClick={() => handleRemove(v.slug)}
+                      className="text-xs text-red-500 hover:text-red-600 cursor-pointer"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <label className={`flex items-center justify-center border-2 border-dashed border-gray-300 rounded-lg py-3 cursor-pointer hover:border-[#F97316] hover:bg-[#F97316]/5 transition-colors ${uploading === v.slug ? 'opacity-50 pointer-events-none' : ''}`}>
+                  <span className="text-xs text-gray-500">
+                    {uploading === v.slug ? 'Uploading...' : 'Drop PDF or click to upload'}
+                  </span>
+                  <input
+                    type="file"
+                    accept=".pdf"
+                    className="hidden"
+                    onChange={(e) => handleUpload(v.slug, e.target.files[0])}
+                  />
+                </label>
+              )}
             </div>
           ))}
         </div>
