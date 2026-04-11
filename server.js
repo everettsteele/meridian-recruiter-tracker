@@ -13,6 +13,7 @@ const googleRoutes = require('./src/routes/google');
 const sseRoutes = require('./src/routes/sse');
 const exportRoutes = require('./src/routes/export');
 const resumeRoutes = require('./src/routes/resumes');
+const billingRoutes = require('./src/routes/billing');
 
 // Middleware
 const { helmetMiddleware, corsMiddleware, globalLimiter } = require('./src/middleware/security');
@@ -24,6 +25,10 @@ const PORT = process.env.PORT || 3000;
 // Global middleware
 // ================================================================
 app.use(helmetMiddleware);
+
+// Stripe webhook needs raw body — mount BEFORE express.json()
+app.use('/api/billing/webhook', express.raw({ type: 'application/json' }));
+
 app.use(express.json({ limit: '1mb' }));
 app.use('/api', corsMiddleware);
 app.use('/api', globalLimiter);
@@ -41,6 +46,7 @@ app.use('/api/google', googleRoutes);
 app.use('/api/sse', sseRoutes);
 app.use('/api/export', exportRoutes);
 app.use('/api/resumes', resumeRoutes);
+app.use('/api/billing', billingRoutes);
 
 // ================================================================
 // Daily cron — 6 AM ET outreach queue + job board crawl

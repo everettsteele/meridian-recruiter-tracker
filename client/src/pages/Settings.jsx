@@ -12,6 +12,7 @@ export default function SettingsPage() {
       <ProfileSection profile={profile} updateProfile={updateProfile} toast={toast} />
       <PreferencesSection profile={profile} updateProfile={updateProfile} toast={toast} />
       <GoogleSection profile={profile} toast={toast} />
+      <BillingSection toast={toast} />
       <ResumeSection />
     </div>
   );
@@ -348,6 +349,74 @@ function GoogleSection({ profile, toast }) {
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+function BillingSection({ toast }) {
+  const [billing, setBilling] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    api.get('/billing/status').then(setBilling).catch(() => {});
+  }, []);
+
+  const handleUpgrade = async () => {
+    setLoading(true);
+    try {
+      const data = await api.post('/billing/checkout');
+      if (data.url) window.location.href = data.url;
+    } catch (err) {
+      toast(err.message || 'Billing not available', 'error');
+      setLoading(false);
+    }
+  };
+
+  const handlePortal = async () => {
+    try {
+      const data = await api.post('/billing/portal');
+      if (data.url) window.location.href = data.url;
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  };
+
+  const isPro = billing?.plan === 'pro';
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-6">
+      <h3 className="text-base font-semibold text-[#1F2D3D] mb-4">Billing</h3>
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-gray-700">Current Plan:</span>
+            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${isPro ? 'bg-[#F97316]/10 text-[#F97316]' : 'bg-gray-100 text-gray-600'}`}>
+              {isPro ? 'Pro' : 'Free'}
+            </span>
+          </div>
+          {!isPro && (
+            <p className="text-xs text-gray-500 mt-1">Upgrade for unlimited AI, 4 resume angles, outreach tracking, and more.</p>
+          )}
+        </div>
+        <div>
+          {isPro ? (
+            <button
+              onClick={handlePortal}
+              className="text-sm text-gray-600 hover:text-gray-800 font-medium cursor-pointer"
+            >
+              Manage Billing
+            </button>
+          ) : (
+            <button
+              onClick={handleUpgrade}
+              disabled={loading}
+              className="bg-[#F97316] hover:bg-[#EA580C] text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+            >
+              {loading ? 'Loading...' : 'Upgrade to Pro — $10/mo'}
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
