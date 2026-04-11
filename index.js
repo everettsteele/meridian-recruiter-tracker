@@ -635,7 +635,7 @@ app.use('/api/job-board', (req, res, next) => {
 app.post('/api/login', (req, res) => {
   if (!PASSWORD) return res.json({ ok: true, token: 'no-auth' });
   if (req.body.password === PASSWORD) {
-    const token = Math.random().toString(36).slice(2) + Date.now().toString(36);
+    const token = randomUUID();
     sessions.add(token);
     res.json({ ok: true, token });
   } else res.status(401).json({ error: 'Wrong password' });
@@ -1048,7 +1048,7 @@ app.post('/api/gmail-sync', requireAuth, (req, res) => {
   res.json({ ok: true, changed });
 });
 
-app.get('/api/debug', (req, res) => {
+app.get('/api/debug', requireAuth, (req, res) => {
   const ov = loadOverrides(), today = todayET();
   let dueCount = 0;
   PILLARS.forEach(track => { getDB(track).forEach(item => { if (item.status === 'contacted' && item.followup_date && item.followup_date <= today && item.is_job_search !== false) dueCount++; }); });
@@ -1057,7 +1057,7 @@ app.get('/api/debug', (req, res) => {
   try { const t = path.join(DATA_DIR, '.write_test'); fs.writeFileSync(t, 'ok'); fs.unlinkSync(t); dataWritable = true; } catch(e) {}
   const apps = loadApplications(), jb = loadJobBoardLeads(), net = loadNetworking(), calCfg = loadCalConfig();
   const overdueSteps = net.filter(e=>!e.hidden).reduce((n, e) => n + (e.next_steps||[]).filter(ns => !ns.done && ns.due_date && ns.due_date <= today).length, 0);
-  res.json({ version: '8.0', dataWritable, dataDir: DATA_DIR, applicationCount: apps.length, applicationsByStatus: apps.reduce((acc,a) => { acc[a.status]=(acc[a.status]||0)+1; return acc; }, {}), applicationsWithCoverLetter: apps.filter(a => a.cover_letter_text).length, jobBoardLeads: jb.length, jobBoardNew: jb.filter(l => l.status==='new').length, jobBoardReviewed: jb.filter(l => l.status==='reviewed').length, jobBoardSnagged: jb.filter(l => l.status==='snagged').length, driveConfigured: !!process.env.DRIVE_WEBHOOK_URL, anthropicConfigured: !!process.env.ANTHROPIC_API_KEY, dueCount, cronState: loadCronState(), todayET: today });
+  res.json({ version: '8.0', dataWritable, applicationCount: apps.length, applicationsByStatus: apps.reduce((acc,a) => { acc[a.status]=(acc[a.status]||0)+1; return acc; }, {}), applicationsWithCoverLetter: apps.filter(a => a.cover_letter_text).length, jobBoardLeads: jb.length, jobBoardNew: jb.filter(l => l.status==='new').length, jobBoardReviewed: jb.filter(l => l.status==='reviewed').length, jobBoardSnagged: jb.filter(l => l.status==='snagged').length, driveConfigured: !!process.env.DRIVE_WEBHOOK_URL, anthropicConfigured: !!process.env.ANTHROPIC_API_KEY, dueCount, cronState: loadCronState(), todayET: today });
 });
 
 const SECTOR_EXCLUDE_FROM_TABLE = new Set(['network']);
@@ -1121,12 +1121,12 @@ app.post('/api/sync', requireAuth, (req, res) => {
 });
 
 // Diagnostic: retrieve log ring buffer
-app.get('/api/diag/logs', (req, res) => {
+app.get('/api/diag/logs', requireAuth, (req, res) => {
   res.json({ count: _diagLogs.length, logs: _diagLogs });
 });
 
 // Diagnostic: search leads by title substring
-app.get('/api/diag/job-board-search', (req, res) => {
+app.get('/api/diag/job-board-search', requireAuth, (req, res) => {
   const q = (req.query.q || '').toLowerCase();
   const leads = loadJobBoardLeads();
   const matches = leads.filter(l => (l.title||'').toLowerCase().includes(q) || (l.organization||'').toLowerCase().includes(q));
@@ -1134,7 +1134,7 @@ app.get('/api/diag/job-board-search', (req, res) => {
 });
 
 // Diagnostic: test job board read-modify-write cycle
-app.get('/api/diag/job-board-rwtest', (req, res) => {
+app.get('/api/diag/job-board-rwtest', requireAuth, (req, res) => {
   try {
     const leads = loadJobBoardLeads();
     const statusCounts = {};
@@ -1155,7 +1155,7 @@ app.get('/api/diag/job-board-rwtest', (req, res) => {
     const ri = revertLeads.findIndex(l => l.id === testId);
     if (ri >= 0) { delete revertLeads[ri]._diag_test; revertLeads[ri].status = 'new'; saveJobBoardLeads(revertLeads); }
     res.json({ ok: true, testId, writeOk, readbackStatus, persisted: readbackStatus === 'reviewed', total: leads.length, statusCounts, path: JOB_BOARD_PATH, fileExists: fs.existsSync(JOB_BOARD_PATH), fileSizeBytes: fs.existsSync(JOB_BOARD_PATH) ? fs.statSync(JOB_BOARD_PATH).size : 0 });
-  } catch(e) { res.json({ ok: false, error: e.message, stack: e.stack }); }
+  } catch(e) { res.json({ ok: false, error: e.message }); }
 });
 
 app.get('/health', (req, res) => res.json({ ok: true, port: PORT, version: '8.0', todayET: todayET() }));

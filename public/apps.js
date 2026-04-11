@@ -1,4 +1,6 @@
-// HopeSpot apps.js v8.0
+// HopeSpot apps.js v9.0
+
+function esc(s){if(typeof esc._memo==='undefined')esc._memo={};if(!s)return '';s=String(s);if(esc._memo[s])return esc._memo[s];var r=s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');esc._memo[s]=r;return r;}
 
 const APP_STATUSES = {
   queued:                { label: 'Queued',       color: '#7c3aed' },
@@ -182,7 +184,7 @@ async function renderDashboard() {
       var pS = (e.next_steps||[]).filter(function(ns){return !ns.done;}).length;
       var oS = (e.next_steps||[]).filter(function(ns){return !ns.done&&ns.due_date&&ns.due_date<=todayStr;}).length;
       var hN = (e.notes||'').trim().length > 0;
-      html += '<div style="padding:7px 0;border-bottom:1px solid #F9FAFB"><div style="font-weight:600;font-size:12px;color:#1F2D3D">'+e.title+'</div><div style="font-size:10px;color:#9CA3AF;margin-top:2px">'+e.start_date+(e.location?' \u00b7 '+e.location:'')+' &nbsp;\u00b7&nbsp; '+(hN?'Notes \u2713':'<span style="color:#F59E0B">No notes</span>')+(oS>0?' &nbsp;\u00b7&nbsp; <span style="color:#EF4444">'+oS+' overdue</span>':(pS>0?' &nbsp;\u00b7&nbsp; <span style="color:#d97706">'+pS+' pending</span>':''))+'</div></div>';
+      html += '<div style="padding:7px 0;border-bottom:1px solid #F9FAFB"><div style="font-weight:600;font-size:12px;color:#1F2D3D">'+esc(e.title)+'</div><div style="font-size:10px;color:#9CA3AF;margin-top:2px">'+esc(e.start_date)+(e.location?' \u00b7 '+esc(e.location):'')+' &nbsp;\u00b7&nbsp; '+(hN?'Notes \u2713':'<span style="color:#F59E0B">No notes</span>')+(oS>0?' &nbsp;\u00b7&nbsp; <span style="color:#EF4444">'+oS+' overdue</span>':(pS>0?' &nbsp;\u00b7&nbsp; <span style="color:#d97706">'+pS+' pending</span>':''))+'</div></div>';
     });
     html += '</div>';
   }
@@ -241,7 +243,7 @@ function renderApplications() {
     var st = APP_STATUSES[app.status]||{label:app.status,color:'#6b7280'};
     var ov = app.follow_up_date&&app.follow_up_date<=today&&['rejected','offer','withdrawn'].indexOf(app.status)<0;
     var lat = (app.activity||[]).slice(-1)[0];
-    var actHtml = lat ? '<span style="font-size:11px;color:#9CA3AF">'+lat.date+': '+(lat.note||lat.type)+'</span>' : '';
+    var actHtml = lat ? '<span style="font-size:11px;color:#9CA3AF">'+esc(lat.date)+': '+esc(lat.note||lat.type)+'</span>' : '';
     var opts = Object.entries(APP_STATUSES).map(function(e){return '<option value="'+e[0]+'" '+(app.status===e[0]?'selected':'')+'>'+e[1].label+'</option>';}).join('');
 
     // Package links — always show both, disabled style when missing
@@ -261,9 +263,9 @@ function renderApplications() {
       : '';
 
     return '<tr style="border-bottom:1px solid #F3F4F6">'
-      +'<td style="padding:10px 0;font-weight:600;font-size:13px">'+app.company+variantBadge+'</td>'
-      +'<td style="padding:10px 8px;font-size:12px;color:#6B7280">'+app.role+'</td>'
-      +'<td style="padding:10px 8px;font-size:12px">'+(app.applied_date||'')+'</td>'
+      +'<td style="padding:10px 0;font-weight:600;font-size:13px">'+esc(app.company)+variantBadge+'</td>'
+      +'<td style="padding:10px 8px;font-size:12px;color:#6B7280">'+esc(app.role)+'</td>'
+      +'<td style="padding:10px 8px;font-size:12px">'+esc(app.applied_date||'')+'</td>'
       +'<td style="padding:10px 8px"><select onchange="_patchApp(this.dataset.id,{status:this.value})" data-id="'+app.id+'" style="font-size:11px;padding:3px 5px;color:'+st.color+';border:1px solid '+st.color+'40;border-radius:4px;background:'+st.color+'12;cursor:pointer">'+opts+'</select></td>'
       +'<td style="padding:10px 8px;font-size:12px;color:'+(ov?'#EF4444':'#6B7280')+'">'+(app.follow_up_date||'')+(ov?' \u26a0':'')+'</td>'
       +'<td style="padding:10px 8px">'+actHtml+'</td>'
@@ -379,10 +381,10 @@ async function renderJobBoard() {
     var btns = '<button class="hs-snag-btn" data-lead-id="'+l.id+'" style="padding:3px 9px;background:#f97316;border:none;border-radius:5px;font-size:11px;color:#fff;cursor:pointer;margin-right:4px;font-weight:600">Snag</button>'
              + '<button class="hs-skip-btn" data-lead-id="'+l.id+'" style="padding:3px 7px;background:#f3f4f6;border:none;border-radius:5px;font-size:11px;color:#374151;cursor:pointer">Skip</button>';
     return '<tr data-lead-id="'+l.id+'" style="border-bottom:1px solid #f3f4f6">'
-      +'<td style="padding:10px 14px"><div style="font-weight:600;font-size:13px">'+l.title+'</div><div style="font-size:11px;color:#6b7280;margin-top:2px">'+(l.organization||'')+(l.location?' \u00b7 '+l.location:'')+'</div><span style="display:inline-block;margin-top:4px;padding:1px 6px;background:'+sc+'15;color:'+sc+';border-radius:4px;font-size:10px;font-weight:700">'+(l.source_label||l.source)+'</span></td>'
+      +'<td style="padding:10px 14px"><div style="font-weight:600;font-size:13px">'+esc(l.title)+'</div><div style="font-size:11px;color:#6b7280;margin-top:2px">'+esc(l.organization||'')+(l.location?' \u00b7 '+esc(l.location):'')+'</div><span style="display:inline-block;margin-top:4px;padding:1px 6px;background:'+sc+'15;color:'+sc+';border-radius:4px;font-size:10px;font-weight:700">'+esc(l.source_label||l.source)+'</span></td>'
       +'<td style="padding:10px 14px;text-align:center"><span style="font-size:13px;font-weight:700;color:'+fc+'">'+l.fit_score+'/10</span></td>'
-      +'<td style="padding:10px 14px;font-size:11px;color:#6b7280">'+l.fit_reason+'</td>'
-      +'<td style="padding:10px 14px;font-size:11px;color:#9ca3af;white-space:nowrap">'+l.date_found+'</td>'
+      +'<td style="padding:10px 14px;font-size:11px;color:#6b7280">'+esc(l.fit_reason)+'</td>'
+      +'<td style="padding:10px 14px;font-size:11px;color:#9ca3af;white-space:nowrap">'+esc(l.date_found)+'</td>'
       +'<td style="padding:10px 14px;white-space:nowrap"><a href="'+l.url+'" target="_blank" style="display:inline-block;padding:3px 9px;background:#1f2d3d;border-radius:5px;font-size:11px;color:#fff;text-decoration:none;margin-right:4px">View</a>'+btns+'</td>'
       +'</tr>';
   }
@@ -444,10 +446,10 @@ function _buildEventHtml(e, today) {
 
   var h = '<div style="background:#fff;border:1px solid #E5E7EB;border-radius:10px;padding:16px;margin-bottom:12px">';
   h += '<div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:12px">';
-  h += '<div style="flex:1"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><div style="font-size:14px;font-weight:600">'+e.title+'</div>';
-  h += '<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:'+c+'15;color:'+c+'">'+(TYPE_LABEL[e.type]||e.type)+'</span>';
+  h += '<div style="flex:1"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><div style="font-size:14px;font-weight:600">'+esc(e.title)+'</div>';
+  h += '<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:'+c+'15;color:'+c+'">'+esc(TYPE_LABEL[e.type]||e.type)+'</span>';
   if (future) h += '<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;background:#EFF6FF;color:#3B82F6">Upcoming</span>';
-  h += '</div><div style="font-size:11px;color:#9CA3AF;margin-top:3px">'+e.start_date+(e.start_time?' at '+e.start_time:'')+(e.location?' \u00b7 '+e.location:'')+'</div></div>';
+  h += '</div><div style="font-size:11px;color:#9CA3AF;margin-top:3px">'+esc(e.start_date)+(e.start_time?' at '+esc(e.start_time):'')+(e.location?' \u00b7 '+esc(e.location):'')+'</div></div>';
   h += '<div style="display:flex;gap:6px;align-items:center">';
   if (ovrS>0) h += '<span style="font-size:10px;font-weight:700;color:#EF4444;background:#FEF2F2;padding:2px 7px;border-radius:4px">'+ovrS+' overdue</span>';
   else if (pendS>0) h += '<span style="font-size:10px;color:#d97706;background:#FEF3C7;padding:2px 7px;border-radius:4px">'+pendS+' pending</span>';
@@ -460,7 +462,7 @@ function _buildEventHtml(e, today) {
   if ((e.contacts||[]).length > 0) {
     h += '<div style="margin-bottom:10px"><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#9CA3AF;margin-bottom:5px">Contacts</div>';
     (e.contacts||[]).forEach(function(ct) {
-      h += '<div style="display:flex;align-items:center;gap:8px;padding:5px 8px;background:#F9FAFB;border-radius:6px;margin-bottom:4px;font-size:12px"><div style="flex:1"><span style="font-weight:600">'+ct.name+'</span>'+(ct.company?' \u00b7 <span style="color:#6B7280">'+ct.company+'</span>':'')+(ct.role?' \u00b7 <span style="color:#9CA3AF">'+ct.role+'</span>':'')+'</div>'+(ct.email?'<span style="font-family:monospace;font-size:10px;color:#F97316">'+ct.email+'</span>':'')+'</div>';
+      h += '<div style="display:flex;align-items:center;gap:8px;padding:5px 8px;background:#F9FAFB;border-radius:6px;margin-bottom:4px;font-size:12px"><div style="flex:1"><span style="font-weight:600">'+esc(ct.name)+'</span>'+(ct.company?' \u00b7 <span style="color:#6B7280">'+esc(ct.company)+'</span>':'')+(ct.role?' \u00b7 <span style="color:#9CA3AF">'+esc(ct.role)+'</span>':'')+'</div>'+(ct.email?'<span style="font-family:monospace;font-size:10px;color:#F97316">'+esc(ct.email)+'</span>':'')+'</div>';
     });
     h += '</div>';
   }
@@ -471,7 +473,7 @@ function _buildEventHtml(e, today) {
       var isOvr = !ns.done&&ns.due_date&&ns.due_date<=today;
       h += '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #F9FAFB;font-size:12px">';
       h += '<input type="checkbox" data-event-id="'+e.id+'" data-step-idx="'+idx+'" '+(ns.done?'checked':'')+' onchange="toggleNextStep(this.dataset.eventId,+this.dataset.stepIdx,this.checked)" style="cursor:pointer">';
-      h += '<span style="flex:1;color:'+(ns.done?'#9CA3AF':'#374151')+';text-decoration:'+(ns.done?'line-through':'none')+'">'+ns.text+'</span>';
+      h += '<span style="flex:1;color:'+(ns.done?'#9CA3AF':'#374151')+';text-decoration:'+(ns.done?'line-through':'none')+'">'+esc(ns.text)+'</span>';
       if (ns.due_date) h += '<span style="font-size:10px;color:'+(isOvr?'#EF4444':'#9CA3AF')+';font-weight:'+(isOvr?'700':'400')+'">'+ns.due_date+'</span>';
       h += '</div>';
     });
@@ -489,8 +491,8 @@ function _buildEventHtml(e, today) {
 function _buildHiddenEventHtml(e) {
   var h = '<div style="background:#fff;border:1px solid #E5E7EB;border-radius:10px;padding:12px 16px;margin-bottom:8px;opacity:.45">';
   h += '<div style="display:flex;align-items:center;justify-content:space-between">';
-  h += '<div><div style="font-size:13px;font-weight:600;color:#9CA3AF;text-decoration:line-through">'+e.title+'</div>';
-  h += '<div style="font-size:11px;color:#9CA3AF;margin-top:2px">'+e.start_date+(e.location?' \u00b7 '+e.location:'')+'</div></div>';
+  h += '<div><div style="font-size:13px;font-weight:600;color:#9CA3AF;text-decoration:line-through">'+esc(e.title)+'</div>';
+  h += '<div style="font-size:11px;color:#9CA3AF;margin-top:2px">'+esc(e.start_date)+(e.location?' \u00b7 '+esc(e.location):'')+'</div></div>';
   h += '<button data-event-id="'+e.id+'" onclick="unhideEvent(this.dataset.eventId)" style="padding:3px 9px;background:#ECFDF5;border:1px solid #A7F3D0;border-radius:5px;font-size:11px;color:#059669;cursor:pointer">unhide</button>';
   h += '</div></div>';
   return h;
@@ -563,7 +565,7 @@ async function renderNetworkingContacts() {
   });
   var contacts = Object.values(contactMap).sort(function(a,b){return b.latestDate.localeCompare(a.latestDate);});
   var rows = contacts.map(function(c) {
-    return '<tr style="border-bottom:1px solid #F3F4F6"><td style="padding:10px 0;font-weight:600;font-size:13px">'+c.name+'</td><td style="padding:10px 8px;font-size:12px;color:#6B7280">'+c.company+'</td><td style="padding:10px 8px;font-size:12px;color:#9CA3AF">'+c.role+'</td><td style="padding:10px 8px;font-family:monospace;font-size:11px;color:#F97316">'+c.email+'</td><td style="padding:10px 8px;font-size:11px;color:#9CA3AF">'+c.latestDate+'</td><td style="padding:10px 8px;font-size:11px;color:#6B7280">'+c.events.map(function(ev){return ev.title;}).join(', ')+'</td></tr>';
+    return '<tr style="border-bottom:1px solid #F3F4F6"><td style="padding:10px 0;font-weight:600;font-size:13px">'+esc(c.name)+'</td><td style="padding:10px 8px;font-size:12px;color:#6B7280">'+esc(c.company)+'</td><td style="padding:10px 8px;font-size:12px;color:#9CA3AF">'+esc(c.role)+'</td><td style="padding:10px 8px;font-family:monospace;font-size:11px;color:#F97316">'+esc(c.email)+'</td><td style="padding:10px 8px;font-size:11px;color:#9CA3AF">'+esc(c.latestDate)+'</td><td style="padding:10px 8px;font-size:11px;color:#6B7280">'+c.events.map(function(ev){return esc(ev.title);}).join(', ')+'</td></tr>';
   }).join('');
   document.getElementById('main-content').innerHTML =
     '<div style="font-size:22px;font-weight:700;margin-bottom:4px">Networking Contacts</div>'
