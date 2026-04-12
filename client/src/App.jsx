@@ -10,6 +10,7 @@ import JobBoardPage from './pages/JobBoard';
 import EventsPage from './pages/Events';
 import SettingsPage from './pages/Settings';
 import OutreachPage from './pages/Outreach';
+import AdminPage from './pages/Admin';
 
 export default function App() {
   const { user, loading } = useAuth();
@@ -48,6 +49,7 @@ export default function App() {
           <Route path="/job-board" element={<JobBoardPage />} />
           <Route path="/events" element={<EventsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          {user?.isAdmin && <Route path="/admin" element={<AdminPage />} />}
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

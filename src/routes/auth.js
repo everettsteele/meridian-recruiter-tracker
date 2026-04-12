@@ -101,6 +101,8 @@ router.post('/login', async (req, res) => {
 // GET /api/auth/me — returns current user + profile
 router.get('/me', requireAuth, async (req, res) => {
   const variants = await getResumeVariants(req.user.id);
+  const { isAdmin } = require('../middleware/admin');
+  const { isPro } = require('../middleware/tier');
   res.json({
     user: {
       id: req.user.id,
@@ -108,7 +110,9 @@ router.get('/me', requireAuth, async (req, res) => {
       role: req.user.role,
       tenantId: req.user.tenantId,
       tenantName: req.user.tenantName,
-      tenantPlan: req.user.tenantPlan,
+      tenantPlan: isPro(req.user) ? 'pro' : req.user.tenantPlan,
+      isAdmin: isAdmin(req.user),
+      isPro: isPro(req.user),
     },
     profile: req.user.profile,
     resumeVariants: variants,

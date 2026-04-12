@@ -44,6 +44,7 @@ function getPageTitle(pathname) {
   if (pathname === '/job-board') return 'Job Board';
   if (pathname === '/events') return 'Events & Meetings';
   if (pathname === '/settings') return 'Settings';
+  if (pathname === '/admin') return 'Admin';
   return 'HopeSpot';
 }
 
@@ -53,6 +54,10 @@ export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [changelogOpen, setChangelogOpen] = useState(false);
   const pageTitle = getPageTitle(location.pathname);
+
+  const navSections = user?.isAdmin
+    ? [...NAV_SECTIONS, { label: 'Admin', items: [{ to: '/admin', label: 'Admin', icon: AdminIcon }] }]
+    : NAV_SECTIONS;
 
   return (
     <div className="flex h-screen bg-gray-50">
@@ -83,7 +88,7 @@ export default function Layout() {
 
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto py-4 px-3">
-          {NAV_SECTIONS.map((section) => (
+          {navSections.map((section) => (
             <div key={section.label} className="mb-5">
               <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 px-3 mb-2">
                 {section.label}
@@ -225,6 +230,14 @@ function EventsIcon({ className }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+    </svg>
+  );
+}
+
+function AdminIcon({ className }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
     </svg>
   );
 }
