@@ -15,12 +15,6 @@ router.get('/job-board', requireAuth, async (req, res) => {
   res.json(leads);
 });
 
-router.patch('/job-board/:id', requireAuth, validate(schemas.leadPatch), async (req, res) => {
-  const updated = await db.updateJobBoardLead(req.user.tenantId, req.params.id, req.body);
-  if (!updated) return res.status(404).json({ error: 'Not found' });
-  res.json(updated);
-});
-
 router.post('/job-board/batch-update', requireAuth, validate(schemas.leadBatchUpdate), async (req, res) => {
   const count = await db.batchUpdateJobBoardLeads(req.user.tenantId, req.body.updates);
   res.json({ ok: true, updated: count });
@@ -82,8 +76,20 @@ router.get('/job-board/config', requireAuth, async (req, res) => {
 
 // Update user's job search config
 router.patch('/job-board/config', requireAuth, async (req, res) => {
-  await db.saveJobSearchConfig(req.user.id, req.body);
+  const { isPro } = require('../middleware/tier');
+  const body = { ...req.body };
+  if (Array.isArray(body.enabled_sources) && !isPro(req.user) && body.enabled_sources.length > 3) {
+    return res.status(403).json({ error: 'Free plan allows up to 3 job board sources. Upgrade to Pro for unlimited.', upgrade: true });
+  }
+  await db.saveJobSearchConfig(req.user.id, body);
   const updated = await db.getJobSearchConfig(req.user.id);
+  res.json(updated);
+});
+
+// Generic lead update — MUST come after specific /job-board/* routes above
+router.patch('/job-board/:id', requireAuth, validate(schemas.leadPatch), async (req, res) => {
+  const updated = await db.updateJobBoardLead(req.user.tenantId, req.params.id, req.body);
+  if (!updated) return res.status(404).json({ error: 'Not found' });
   res.json(updated);
 });
 

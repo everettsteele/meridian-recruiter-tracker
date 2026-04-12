@@ -887,6 +887,9 @@ function ResumeSection() {
 }
 
 function JobSearchSection({ toast }) {
+  const { user } = useAuth();
+  const isPro = !!user?.isPro;
+  const FREE_SOURCE_LIMIT = 3;
   const [sources, setSources] = useState([]);
   const [config, setConfig] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -910,10 +913,22 @@ function JobSearchSection({ toast }) {
   const denies = config.location_deny || [];
 
   const toggleSource = (name) => {
-    const updated = enabled.includes(name)
+    const isOn = enabled.includes(name);
+    if (!isOn && !isPro && enabled.length >= FREE_SOURCE_LIMIT) {
+      toast(`Free plan is limited to ${FREE_SOURCE_LIMIT} job boards. Upgrade to Pro to enable all sources.`, 'error');
+      return;
+    }
+    const updated = isOn
       ? enabled.filter((n) => n !== name)
       : [...enabled, name];
     setConfig({ ...config, enabled_sources: updated });
+  };
+
+  const toggleAll = () => {
+    if (!isPro) return;
+    const allNames = sources.map((s) => s.name);
+    const allOn = allNames.every((n) => enabled.includes(n));
+    setConfig({ ...config, enabled_sources: allOn ? [] : allNames });
   };
 
   const addTag = (type, value) => {
@@ -958,7 +973,25 @@ function JobSearchSection({ toast }) {
       <div className="space-y-5">
         {/* Sources grouped by category */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Enabled Sources</label>
+          <div className="flex items-center justify-between mb-2">
+            <label className="block text-sm font-medium text-gray-700">
+              Enabled Sources
+              {!isPro && (
+                <span className="ml-2 text-xs font-normal text-gray-500">
+                  ({enabled.length}/{FREE_SOURCE_LIMIT} on Free plan)
+                </span>
+              )}
+            </label>
+            {isPro && sources.length > 0 && (
+              <button
+                type="button"
+                onClick={toggleAll}
+                className="text-xs font-medium text-[#F97316] hover:text-[#EA580C] cursor-pointer"
+              >
+                {sources.every((s) => enabled.includes(s.name)) ? 'Clear all' : 'Select all'}
+              </button>
+            )}
+          </div>
           {Object.entries(
             sources.reduce((acc, s) => {
               const cat = s.category || 'General';
@@ -970,22 +1003,37 @@ function JobSearchSection({ toast }) {
             <div key={category} className="mb-3">
               <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">{category}</div>
               <div className="grid grid-cols-2 gap-1.5">
-                {list.map((s) => (
-                  <label key={s.name} className="flex items-center gap-2 cursor-pointer bg-gray-50 px-2.5 py-1.5 rounded hover:bg-gray-100">
-                    <input
-                      type="checkbox"
-                      checked={enabled.length === 0 ? true : enabled.includes(s.name)}
-                      onChange={() => toggleSource(s.name)}
-                      className="w-4 h-4 accent-[#F97316]"
-                    />
-                    <span className="text-sm text-gray-700">{s.label}</span>
-                  </label>
-                ))}
+                {list.map((s) => {
+                  const checked = isPro
+                    ? (enabled.length === 0 ? true : enabled.includes(s.name))
+                    : enabled.includes(s.name);
+                  const atLimit = !isPro && !checked && enabled.length >= FREE_SOURCE_LIMIT;
+                  return (
+                    <label
+                      key={s.name}
+                      className={`flex items-center gap-2 px-2.5 py-1.5 rounded ${atLimit ? 'bg-gray-50 opacity-50 cursor-not-allowed' : 'bg-gray-50 hover:bg-gray-100 cursor-pointer'}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        disabled={atLimit}
+                        onChange={() => toggleSource(s.name)}
+                        className="w-4 h-4 accent-[#F97316]"
+                      />
+                      <span className="text-sm text-gray-700">{s.label}</span>
+                    </label>
+                  );
+                })}
               </div>
             </div>
           ))}
-          {enabled.length === 0 && (
+          {isPro && enabled.length === 0 && (
             <p className="text-xs text-gray-400 mt-1">All sources enabled by default (uncheck to exclude)</p>
+          )}
+          {!isPro && (
+            <p className="text-xs text-gray-400 mt-1">
+              Free plan: choose up to {FREE_SOURCE_LIMIT} job boards. <a href="#billing" className="text-[#F97316] hover:underline">Upgrade to Pro</a> to enable all sources.
+            </p>
           )}
         </div>
 

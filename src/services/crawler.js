@@ -404,10 +404,20 @@ async function crawlJobBoards(tenantId, userId) {
     }
   } catch (e) {}
 
-  // Filter sources by user's enabled list
-  const enabledSources = userConfig?.enabled_sources?.length
+  // Filter sources by user's enabled list, then cap for non-Pro users
+  let enabledSources = userConfig?.enabled_sources?.length
     ? JOB_SOURCES.filter(s => userConfig.enabled_sources.includes(s.name))
     : JOB_SOURCES;
+  try {
+    const { query } = require('../db/pool');
+    const { isPro } = require('../middleware/tier');
+    const { rows } = await query(
+      `SELECT u.email, t.plan as tenant_plan FROM users u LEFT JOIN tenants t ON u.tenant_id = t.id WHERE u.id = $1`,
+      [userId]
+    );
+    const pro = isPro({ email: rows[0]?.email, tenantPlan: rows[0]?.tenant_plan });
+    if (!pro && enabledSources.length > 3) enabledSources = enabledSources.slice(0, 3);
+  } catch (e) { /* if plan lookup fails, allow all — avoids breaking existing users */ }
 
   // Get existing lead URLs for dedup
   const allStatuses = await db.listJobBoardLeads(tenantId, null);

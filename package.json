@@ -1,5 +1,5 @@
 {
-  "name": "meridian-recruiter-tracker",
+  "name": "snag-jobs",
   "version": "1.0.0",
   "description": "Open-source recruiter outreach tracker.",
   "main": "server.js",
