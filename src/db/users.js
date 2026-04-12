@@ -132,11 +132,50 @@ async function getResumeVariants(userId) {
   return rows;
 }
 
+async function findUserByApiKey(apiKey) {
+  const { rows } = await query(
+    `SELECT u.id, u.tenant_id, u.email, u.role, u.created_at,
+            up.full_name, up.phone, up.email_display, up.linkedin_url,
+            up.location, up.background_text, up.target_roles, up.target_geography,
+            up.target_industries, up.daily_outreach_target, up.sla_target,
+            up.weekly_outreach_target, up.weekly_apps_target,
+            up.weekly_events_target, up.weekly_followups_target,
+            up.signature_style, up.signature_image_url, up.signature_closing,
+            t.name as tenant_name, t.plan as tenant_plan
+     FROM users u
+     JOIN user_profiles up ON up.user_id = u.id
+     JOIN tenants t ON t.id = u.tenant_id
+     WHERE u.api_key = $1`,
+    [apiKey]
+  );
+  return rows[0] || null;
+}
+
+async function rotateApiKey(userId) {
+  // Generate a key with a recognizable prefix
+  const key = 'snag_' + require('crypto').randomBytes(24).toString('hex');
+  await query(`UPDATE users SET api_key = $1 WHERE id = $2`, [key, userId]);
+  return key;
+}
+
+async function revokeApiKey(userId) {
+  await query(`UPDATE users SET api_key = NULL WHERE id = $1`, [userId]);
+}
+
+async function getApiKey(userId) {
+  const { rows } = await query(`SELECT api_key FROM users WHERE id = $1`, [userId]);
+  return rows[0]?.api_key || null;
+}
+
 module.exports = {
   createTenantWithOwner,
   findUserByEmail,
   findUserById,
+  findUserByApiKey,
   verifyPassword,
   updateProfile,
   getResumeVariants,
+  rotateApiKey,
+  revokeApiKey,
+  getApiKey,
 };

@@ -137,9 +137,30 @@ router.patch('/profile', requireAuth, async (req, res) => {
   res.json({ ok: true, profile: updated });
 });
 
-// GET /api/auth/check — lightweight auth check (no DB lookup needed since middleware does it)
+// GET /api/auth/check — lightweight auth check
 router.get('/check', requireAuth, (req, res) => {
   res.json({ ok: true, userId: req.user.id, tenantId: req.user.tenantId });
+});
+
+// GET /api/auth/api-key — get current API key (for Chrome extension)
+router.get('/api-key', requireAuth, async (req, res) => {
+  const { getApiKey } = require('../db/users');
+  const apiKey = await getApiKey(req.user.id);
+  res.json({ apiKey });
+});
+
+// POST /api/auth/api-key — generate a new API key (invalidates old one)
+router.post('/api-key', requireAuth, async (req, res) => {
+  const { rotateApiKey } = require('../db/users');
+  const apiKey = await rotateApiKey(req.user.id);
+  res.json({ apiKey });
+});
+
+// DELETE /api/auth/api-key — revoke the API key
+router.delete('/api-key', requireAuth, async (req, res) => {
+  const { revokeApiKey } = require('../db/users');
+  await revokeApiKey(req.user.id);
+  res.json({ ok: true });
 });
 
 module.exports = router;

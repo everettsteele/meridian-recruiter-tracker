@@ -14,6 +14,7 @@ export default function SettingsPage() {
       <PreferencesSection profile={profile} updateProfile={updateProfile} toast={toast} />
       <GoogleSection profile={profile} toast={toast} />
       <CalendarPickerSection profile={profile} toast={toast} />
+      <ApiKeySection toast={toast} />
       <BillingSection toast={toast} />
       <ResumeSection />
       <JobSearchSection toast={toast} />
@@ -519,6 +520,78 @@ function CalendarPickerSection({ profile, toast }) {
           {saving ? 'Saving...' : 'Save Calendar Config'}
         </button>
       </div>
+    </div>
+  );
+}
+
+function ApiKeySection({ toast }) {
+  const [apiKey, setApiKey] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [show, setShow] = useState(false);
+
+  useEffect(() => {
+    api.get('/auth/api-key').then((d) => { setApiKey(d.apiKey); setLoading(false); }).catch(() => setLoading(false));
+  }, []);
+
+  const handleGenerate = async () => {
+    try {
+      const d = await api.post('/auth/api-key');
+      setApiKey(d.apiKey);
+      setShow(true);
+      toast('API key generated — copy it now');
+    } catch (err) { toast(err.message, 'error'); }
+  };
+
+  const handleRevoke = async () => {
+    if (!window.confirm('Revoke this API key? Chrome extension will stop working until you generate a new one.')) return;
+    try {
+      await api.del('/auth/api-key');
+      setApiKey(null);
+      setShow(false);
+      toast('API key revoked');
+    } catch (err) { toast(err.message, 'error'); }
+  };
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(apiKey);
+    toast('Copied to clipboard');
+  };
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-6">
+      <h3 className="text-base font-semibold text-[#1F2D3D] mb-2">API Key</h3>
+      <p className="text-xs text-gray-500 mb-4">
+        Used by the Snag Chrome extension to save jobs directly into your tracker. Keep it private.
+      </p>
+      {loading ? (
+        <div className="text-sm text-gray-400">Loading...</div>
+      ) : apiKey ? (
+        <div className="space-y-3">
+          <div className="bg-gray-50 rounded-lg p-3 flex items-center gap-2">
+            <code className="text-xs font-mono text-gray-700 flex-1 truncate">
+              {show ? apiKey : '•'.repeat(48)}
+            </code>
+            <button onClick={() => setShow(!show)} className="text-xs text-gray-500 hover:text-gray-700 cursor-pointer">
+              {show ? 'Hide' : 'Show'}
+            </button>
+            <button onClick={handleCopy} className="text-xs bg-[#1F2D3D] hover:bg-[#2C3E50] text-white px-3 py-1.5 rounded cursor-pointer">
+              Copy
+            </button>
+          </div>
+          <div className="flex justify-end gap-2">
+            <button onClick={handleRevoke} className="text-xs text-red-600 hover:text-red-700 cursor-pointer">
+              Revoke
+            </button>
+            <button onClick={handleGenerate} className="text-xs bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-3 py-1.5 rounded cursor-pointer">
+              Regenerate
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button onClick={handleGenerate} className="bg-[#F97316] hover:bg-[#EA580C] text-white text-sm font-medium px-4 py-2 rounded-lg cursor-pointer">
+          Generate API Key
+        </button>
+      )}
     </div>
   );
 }
