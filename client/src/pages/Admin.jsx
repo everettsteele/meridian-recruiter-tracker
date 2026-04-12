@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import { useToast } from '../components/Toast';
@@ -6,44 +5,137 @@ import { useToast } from '../components/Toast';
 export default function AdminPage() {
   return (
     <div className="space-y-6">
-      <OverviewSection />
+      <RevenueSection />
+      <CostSection />
       <UsersSection />
-      <UsageSection />
     </div>
   );
 }
 
-function OverviewSection() {
+function fmtUSD(n) {
+  if (n == null) return '—';
+  return '$' + n.toLocaleString('en-US', { maximumFractionDigits: 2 });
+}
+
+function RevenueSection() {
   const { data, isLoading } = useQuery({
     queryKey: ['admin-overview'],
     queryFn: () => api.get('/admin/overview'),
   });
 
-  if (isLoading) return <div className="text-gray-400">Loading...</div>;
-  if (!data) return null;
-
-  const usage7 = (data.usage7d || []).reduce((acc, r) => { acc[r.action] = r; return acc; }, {});
+  if (isLoading || !data) return <div className="text-gray-400">Loading...</div>;
+  const r = data.revenue;
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-      <Stat label="Tenants" value={data.tenants} />
-      <Stat label="Users" value={data.users} />
-      <Stat label="Pro Tenants" value={data.plans?.pro || 0} sub={`${data.plans?.free || 0} free`} />
-      <Stat label="Applications" value={data.applications} />
-      <Stat label="Job Leads" value={data.leads} />
-      <Stat label="Events" value={data.events} />
-      <Stat label="AI · 7d" value={usage7.cover_letters?.c || 0} sub={`${usage7.cover_letters?.tokens || 0} tok`} />
-      <Stat label="Crawl · 7d" value={usage7.crawl?.c || 0} />
+    <div>
+      <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Revenue</h2>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <BigMetric label="MRR" value={fmtUSD(r.mrr)} accent="text-[#F97316]" sub={`${r.paidUsers} paid users`} />
+        <BigMetric label="ARR" value={fmtUSD(r.arr)} accent="text-[#1F2D3D]" sub="projected 12-month" />
+        <BigMetric
+          label="Gross Margin"
+          value={r.grossMargin == null ? '—' : `${r.grossMargin}%`}
+          accent={r.grossMargin != null && r.grossMargin > 80 ? 'text-green-600' : 'text-amber-600'}
+          sub="this month (after AI cost)"
+        />
+        <BigMetric
+          label="Churn Rate"
+          value={r.churnRate != null ? `${r.churnRate}%` : '—'}
+          accent={r.churnRate > 10 ? 'text-red-600' : 'text-gray-700'}
+          sub={`${r.churned} cancelled`}
+        />
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
+        <SmallMetric label="Total users" value={r.totalUsers} />
+        <SmallMetric label="Free" value={r.freeUsers} />
+        <SmallMetric label="New paid (30d)" value={r.newPaid30} />
+        <SignupsMetric data={data.signups} />
+      </div>
     </div>
   );
 }
 
-function Stat({ label, value, sub }) {
+function SignupsMetric({ data }) {
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-4">
-      <div className="text-xs text-gray-500 font-medium">{label}</div>
-      <div className="text-2xl font-bold text-[#1F2D3D] mt-1">{value}</div>
-      {sub && <div className="text-xs text-gray-400 mt-0.5">{sub}</div>}
+      <div className="text-xs text-gray-500 font-medium">Signups</div>
+      <div className="text-xl font-bold text-[#1F2D3D] mt-1">{data.last7} <span className="text-xs text-gray-400 font-normal">(7d)</span></div>
+      <div className="text-xs text-gray-400">{data.last30} in 30d</div>
+    </div>
+  );
+}
+
+function CostSection() {
+  const { data, isLoading } = useQuery({
+    queryKey: ['admin-overview'],
+    queryFn: () => api.get('/admin/overview'),
+  });
+
+  if (isLoading || !data) return null;
+  const c = data.aiCost;
+  const prices = data.prices;
+
+  return (
+    <div>
+      <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">AI Cost</h2>
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-3">
+        <BigMetric
+          label="This month"
+          value={fmtUSD(c.costThisMonth)}
+          accent="text-[#1F2D3D]"
+          sub="from usage_log"
+        />
+        <BigMetric
+          label="All time"
+          value={fmtUSD(c.totalCost)}
+          accent="text-[#1F2D3D]"
+          sub={`${c.totalTokens.toLocaleString()} tokens logged`}
+        />
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <div className="text-xs text-gray-500 font-medium mb-2">Cost per action</div>
+          <div className="space-y-0.5 text-xs">
+            {Object.entries(prices.perAction).map(([action, price]) => (
+              <div key={action} className="flex justify-between">
+                <span className="text-gray-600">{action}</span>
+                <span className="font-mono text-gray-700">{fmtUSD(price)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Breakdown by action */}
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="px-4 py-3 border-b border-gray-100">
+          <h3 className="text-sm font-semibold text-[#1F2D3D]">AI Spend by Action (all time)</h3>
+        </div>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-gray-500 border-b border-gray-100 bg-gray-50/50">
+              <th className="px-4 py-2 font-medium">Action</th>
+              <th className="px-4 py-2 font-medium text-right">Calls</th>
+              <th className="px-4 py-2 font-medium text-right">Tokens</th>
+              <th className="px-4 py-2 font-medium text-right">Cost</th>
+            </tr>
+          </thead>
+          <tbody>
+            {Object.entries(c.byAction).length === 0 ? (
+              <tr><td colSpan={4} className="px-4 py-6 text-center text-gray-400">No AI usage yet</td></tr>
+            ) : (
+              Object.entries(c.byAction)
+                .sort(([, a], [, b]) => b.cost - a.cost)
+                .map(([action, stats]) => (
+                  <tr key={action} className="border-b border-gray-50">
+                    <td className="px-4 py-2 text-[#1F2D3D]">{action}</td>
+                    <td className="px-4 py-2 text-right text-gray-700">{stats.calls.toLocaleString()}</td>
+                    <td className="px-4 py-2 text-right text-gray-700">{stats.tokens.toLocaleString()}</td>
+                    <td className="px-4 py-2 text-right font-medium text-[#1F2D3D]">{fmtUSD(stats.cost)}</td>
+                  </tr>
+                ))
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -68,112 +160,102 @@ function UsersSection() {
 
   if (isLoading) return null;
 
+  // Compute per-user profitability
+  const enrichedUsers = (data || []).map((u) => ({
+    ...u,
+    // Monthly contribution = revenue - (ai_cost_total / months active)
+    // Simplified: just show revenue and total AI cost separately
+  }));
+
   return (
-    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-      <div className="px-6 py-4 border-b border-gray-100">
-        <h3 className="text-sm font-semibold text-[#1F2D3D]">Users ({data?.length || 0})</h3>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-gray-500 border-b border-gray-100 bg-gray-50/50">
-              <th className="px-4 py-3 font-medium">Email</th>
-              <th className="px-4 py-3 font-medium">Name</th>
-              <th className="px-4 py-3 font-medium">Plan</th>
-              <th className="px-4 py-3 font-medium text-right">Apps</th>
-              <th className="px-4 py-3 font-medium text-right">AI 30d</th>
-              <th className="px-4 py-3 font-medium">Signed Up</th>
-              <th className="px-4 py-3 font-medium">Stripe</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(data || []).map((u) => (
-              <tr key={u.id} className="border-b border-gray-50 hover:bg-gray-50/50">
-                <td className="px-4 py-3 text-[#1F2D3D] font-medium">{u.email}</td>
-                <td className="px-4 py-3 text-gray-700">{u.full_name || '—'}</td>
-                <td className="px-4 py-3">
-                  <select
-                    value={u.plan}
-                    onChange={(e) => changePlanMutation.mutate({ tenantId: u.tenant_id, plan: e.target.value })}
-                    className={`text-xs font-medium px-2 py-1 rounded-full border-0 cursor-pointer ${
-                      u.plan === 'pro' ? 'bg-[#F97316]/10 text-[#F97316]' :
-                      u.plan === 'enterprise' ? 'bg-purple-50 text-purple-700' :
-                      'bg-gray-100 text-gray-600'
-                    }`}
-                  >
-                    <option value="free">free</option>
-                    <option value="pro">pro</option>
-                    <option value="enterprise">enterprise</option>
-                  </select>
-                </td>
-                <td className="px-4 py-3 text-right text-gray-700">{u.app_count}</td>
-                <td className="px-4 py-3 text-right text-gray-700">{u.usage_30d}</td>
-                <td className="px-4 py-3 text-xs text-gray-500">{new Date(u.created_at).toLocaleDateString()}</td>
-                <td className="px-4 py-3 text-xs text-gray-500">
-                  {u.stripe_subscription_id ? (
-                    <span className="text-green-600">active</span>
-                  ) : u.stripe_customer_id ? (
-                    <span className="text-amber-600">customer only</span>
-                  ) : (
-                    <span className="text-gray-400">—</span>
-                  )}
-                </td>
+    <div>
+      <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Users</h2>
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+          <span className="text-sm text-gray-600">{enrichedUsers.length} total</span>
+          <span className="text-xs text-gray-400">sorted by plan, then signup</span>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-gray-500 border-b border-gray-100 bg-gray-50/50">
+                <th className="px-4 py-2 font-medium">Email</th>
+                <th className="px-4 py-2 font-medium">Plan</th>
+                <th className="px-4 py-2 font-medium text-right">MRR</th>
+                <th className="px-4 py-2 font-medium text-right">AI Cost (total)</th>
+                <th className="px-4 py-2 font-medium text-right">AI Calls 30d</th>
+                <th className="px-4 py-2 font-medium">Signed Up</th>
+                <th className="px-4 py-2 font-medium">Stripe</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {enrichedUsers.map((u) => {
+                const isProfit = u.plan === 'pro' && u.ai_cost_total < 10;
+                return (
+                  <tr key={u.id} className="border-b border-gray-50 hover:bg-gray-50/50">
+                    <td className="px-4 py-2">
+                      <div className="text-[#1F2D3D] font-medium">{u.email}</div>
+                      {u.full_name && <div className="text-[10px] text-gray-500">{u.full_name}</div>}
+                    </td>
+                    <td className="px-4 py-2">
+                      <select
+                        value={u.plan}
+                        onChange={(e) => changePlanMutation.mutate({ tenantId: u.tenant_id, plan: e.target.value })}
+                        className={`text-xs font-medium px-2 py-1 rounded-full border-0 cursor-pointer ${
+                          u.plan === 'pro' ? 'bg-[#F97316]/10 text-[#F97316]' :
+                          u.plan === 'enterprise' ? 'bg-purple-50 text-purple-700' :
+                          'bg-gray-100 text-gray-600'
+                        }`}
+                      >
+                        <option value="free">free</option>
+                        <option value="pro">pro</option>
+                        <option value="enterprise">enterprise</option>
+                      </select>
+                    </td>
+                    <td className="px-4 py-2 text-right font-medium text-green-600">
+                      {u.monthly_revenue > 0 ? fmtUSD(u.monthly_revenue) : '—'}
+                    </td>
+                    <td className={`px-4 py-2 text-right ${u.ai_cost_total > 5 ? 'text-red-600' : 'text-gray-700'}`}>
+                      {u.ai_cost_total > 0 ? fmtUSD(u.ai_cost_total) : '—'}
+                    </td>
+                    <td className="px-4 py-2 text-right text-gray-500">{u.ai_calls_30d || 0}</td>
+                    <td className="px-4 py-2 text-xs text-gray-500">{new Date(u.created_at).toLocaleDateString()}</td>
+                    <td className="px-4 py-2 text-xs">
+                      {u.stripe_subscription_id ? (
+                        <span className="text-green-600 font-medium">active</span>
+                      ) : u.stripe_customer_id ? (
+                        <span className="text-amber-600">cancelled</span>
+                      ) : (
+                        <span className="text-gray-300">—</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
 }
 
-function UsageSection() {
-  const [days, setDays] = useState(7);
-  const { data, isLoading } = useQuery({
-    queryKey: ['admin-usage', days],
-    queryFn: () => api.get(`/admin/usage?days=${days}`),
-  });
-
+function BigMetric({ label, value, accent, sub }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-      <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-[#1F2D3D]">Recent Usage</h3>
-        <select
-          value={days}
-          onChange={(e) => setDays(parseInt(e.target.value))}
-          className="text-xs border border-gray-200 rounded px-2 py-1"
-        >
-          <option value={1}>Last 24h</option>
-          <option value={7}>Last 7 days</option>
-          <option value={30}>Last 30 days</option>
-        </select>
-      </div>
-      <div className="overflow-x-auto max-h-96 overflow-y-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-gray-500 border-b border-gray-100 bg-gray-50/50 sticky top-0">
-              <th className="px-4 py-3 font-medium">When</th>
-              <th className="px-4 py-3 font-medium">User</th>
-              <th className="px-4 py-3 font-medium">Action</th>
-              <th className="px-4 py-3 font-medium text-right">Tokens</th>
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading ? (
-              <tr><td colSpan={4} className="px-4 py-6 text-center text-gray-400">Loading...</td></tr>
-            ) : !data?.length ? (
-              <tr><td colSpan={4} className="px-4 py-6 text-center text-gray-400">No usage in this period.</td></tr>
-            ) : data.map((u, i) => (
-              <tr key={i} className="border-b border-gray-50">
-                <td className="px-4 py-2 text-xs text-gray-500">{new Date(u.created_at).toLocaleString()}</td>
-                <td className="px-4 py-2 text-xs text-gray-700">{u.user_email || '—'}</td>
-                <td className="px-4 py-2 text-xs text-gray-700">{u.action}</td>
-                <td className="px-4 py-2 text-xs text-gray-500 text-right">{u.tokens_used || 0}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+    <div className="bg-white rounded-xl border border-gray-200 p-5">
+      <div className="text-xs text-gray-500 font-medium mb-1">{label}</div>
+      <div className={`text-3xl font-bold ${accent || 'text-[#1F2D3D]'}`}>{value}</div>
+      {sub && <div className="text-xs text-gray-400 mt-0.5">{sub}</div>}
+    </div>
+  );
+}
+
+function SmallMetric({ label, value, sub }) {
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-4">
+      <div className="text-xs text-gray-500 font-medium">{label}</div>
+      <div className="text-xl font-bold text-[#1F2D3D] mt-1">{value}</div>
+      {sub && <div className="text-xs text-gray-400 mt-0.5">{sub}</div>}
     </div>
   );
 }
