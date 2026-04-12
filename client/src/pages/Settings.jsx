@@ -12,6 +12,7 @@ export default function SettingsPage() {
       <ProfileSection profile={profile} updateProfile={updateProfile} toast={toast} />
       <PreferencesSection profile={profile} updateProfile={updateProfile} toast={toast} />
       <GoogleSection profile={profile} toast={toast} />
+      <CalendarPickerSection profile={profile} toast={toast} />
       <BillingSection toast={toast} />
       <ResumeSection />
       <JobSearchSection toast={toast} />
@@ -390,6 +391,133 @@ function GoogleSection({ profile, toast }) {
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+function CalendarPickerSection({ profile, toast }) {
+  const [calendars, setCalendars] = useState(null);
+  const [config, setConfig] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const googleEmail = profile?.google_email || profile?.preferences?.google_email;
+
+  useEffect(() => {
+    if (!googleEmail) return;
+    Promise.all([
+      api.get('/google/calendar/list').catch(() => []),
+      api.get('/networking/calendar-config').catch(() => ({})),
+    ]).then(([cals, cfg]) => {
+      setCalendars(cals);
+      setConfig(cfg);
+    });
+  }, [googleEmail]);
+
+  if (!googleEmail) return null;
+
+  const whitelisted = config?.whitelisted_calendar_ids || [];
+  const isPrimaryOnly = !config?.setup_complete || whitelisted.length === 0;
+
+  const toggleCalendar = (calId) => {
+    const next = whitelisted.includes(calId)
+      ? whitelisted.filter((id) => id !== calId)
+      : [...whitelisted, calId];
+    setConfig({ ...config, whitelisted_calendar_ids: next });
+  };
+
+  const setPrimaryOnly = () => {
+    setConfig({ ...config, whitelisted_calendar_ids: [], setup_complete: false });
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const names = {};
+      (calendars || []).forEach((c) => {
+        if (whitelisted.includes(c.id)) names[c.id] = c.name;
+      });
+      await api.post('/networking/calendar-config', {
+        whitelisted_calendar_ids: whitelisted,
+        whitelisted_calendar_names: names,
+        setup_complete: whitelisted.length > 0,
+      });
+      toast('Calendar config saved');
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-6">
+      <h3 className="text-base font-semibold text-[#1F2D3D] mb-2">Calendar Sync</h3>
+      <p className="text-xs text-gray-500 mb-4">
+        Pick which calendars to pull into Events. Default is your primary calendar only.
+      </p>
+
+      <div className="mb-4">
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="radio"
+            checked={isPrimaryOnly}
+            onChange={setPrimaryOnly}
+            className="w-4 h-4 accent-[#F97316]"
+          />
+          <span className="text-sm text-gray-700 font-medium">Primary calendar only (recommended)</span>
+        </label>
+        <p className="text-xs text-gray-400 ml-6 mt-0.5">
+          Filters out all-day events, declined meetings, and cancellations.
+        </p>
+      </div>
+
+      <div>
+        <label className="flex items-center gap-2 cursor-pointer mb-2">
+          <input
+            type="radio"
+            checked={!isPrimaryOnly}
+            onChange={() => { if (whitelisted.length === 0 && calendars?.length) toggleCalendar(calendars[0].id); }}
+            className="w-4 h-4 accent-[#F97316]"
+          />
+          <span className="text-sm text-gray-700 font-medium">Pick specific calendars</span>
+        </label>
+
+        {!isPrimaryOnly && (
+          <div className="ml-6 space-y-1.5 max-h-60 overflow-y-auto">
+            {!calendars ? (
+              <p className="text-xs text-gray-400">Loading calendars...</p>
+            ) : calendars.length === 0 ? (
+              <p className="text-xs text-gray-400">No calendars found.</p>
+            ) : (
+              calendars.map((c) => (
+                <label key={c.id} className="flex items-center gap-2 cursor-pointer bg-gray-50 px-3 py-1.5 rounded hover:bg-gray-100">
+                  <input
+                    type="checkbox"
+                    checked={whitelisted.includes(c.id)}
+                    onChange={() => toggleCalendar(c.id)}
+                    className="w-4 h-4 accent-[#F97316]"
+                  />
+                  <span
+                    className="w-2 h-2 rounded-full shrink-0"
+                    style={{ backgroundColor: c.backgroundColor || '#888' }}
+                  />
+                  <span className="text-sm text-gray-700 truncate flex-1">{c.name}</span>
+                  {c.primary && <span className="text-[10px] text-[#F97316] font-bold">PRIMARY</span>}
+                </label>
+              ))
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="flex justify-end mt-4">
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="bg-[#F97316] hover:bg-[#EA580C] text-white text-sm font-medium px-4 py-2 rounded-lg cursor-pointer disabled:opacity-50"
+        >
+          {saving ? 'Saving...' : 'Save Calendar Config'}
+        </button>
+      </div>
     </div>
   );
 }

@@ -48,10 +48,19 @@ async function listUpcomingEvents(userId, { calendarIds, daysAhead, daysBehind }
       });
 
       (data.items || []).forEach(event => {
-        // Skip all-day events without a clear meeting purpose
         const start = event.start?.dateTime || event.start?.date;
         const end = event.end?.dateTime || event.end?.date;
         if (!start) return;
+
+        // Skip events where user declined
+        const selfAttendee = (event.attendees || []).find(a => a.self);
+        if (selfAttendee?.responseStatus === 'declined') return;
+
+        // Skip all-day events (usually holidays/birthdays/travel blocks)
+        if (!event.start?.dateTime) return;
+
+        // Skip cancelled events
+        if (event.status === 'cancelled') return;
 
         allEvents.push({
           external_id: event.id,

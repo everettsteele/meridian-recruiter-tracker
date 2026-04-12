@@ -18,6 +18,13 @@ export default function EventsPage() {
   const { toast } = useToast();
   const [showModal, setShowModal] = useState(false);
   const [showHidden, setShowHidden] = useState(false);
+  const [view, setView] = useState('calendar'); // 'calendar' | 'list'
+  const [calMonth, setCalMonth] = useState(() => {
+    const d = new Date();
+    d.setDate(1);
+    return d;
+  });
+  const [selectedEventId, setSelectedEventId] = useState(null);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['events'],
@@ -127,15 +134,34 @@ export default function EventsPage() {
     return d && d < new Date(todayStr + 'T00:00:00');
   });
 
+  const selectedEvent = selectedEventId ? visibleEvents.find((e) => e.id === selectedEventId) : null;
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold text-[#1F2D3D]">
-          {visibleEvents.length} Event{visibleEvents.length !== 1 ? 's' : ''}
-        </h2>
+        <div className="flex items-center gap-3">
+          <h2 className="text-lg font-semibold text-[#1F2D3D]">
+            {visibleEvents.length} Event{visibleEvents.length !== 1 ? 's' : ''}
+          </h2>
+          {/* View toggle */}
+          <div className="inline-flex bg-gray-100 rounded-lg p-0.5">
+            <button
+              onClick={() => setView('calendar')}
+              className={`text-xs font-medium px-3 py-1 rounded cursor-pointer ${view === 'calendar' ? 'bg-white text-[#1F2D3D] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              Calendar
+            </button>
+            <button
+              onClick={() => setView('list')}
+              className={`text-xs font-medium px-3 py-1 rounded cursor-pointer ${view === 'list' ? 'bg-white text-[#1F2D3D] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              List
+            </button>
+          </div>
+        </div>
         <div className="flex items-center gap-2">
-          {hiddenEvents.length > 0 && (
+          {hiddenEvents.length > 0 && view === 'list' && (
             <button
               onClick={() => setShowHidden(!showHidden)}
               className="text-sm text-gray-500 hover:text-gray-700 cursor-pointer"
@@ -159,8 +185,61 @@ export default function EventsPage() {
         </div>
       </div>
 
+      {/* Calendar view */}
+      {view === 'calendar' && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="lg:col-span-2">
+            <CalendarGrid
+              month={calMonth}
+              events={visibleEvents}
+              getEventDate={getEventDate}
+              selectedEventId={selectedEventId}
+              onSelectEvent={setSelectedEventId}
+              onPrevMonth={() => {
+                const d = new Date(calMonth);
+                d.setMonth(d.getMonth() - 1);
+                setCalMonth(d);
+              }}
+              onNextMonth={() => {
+                const d = new Date(calMonth);
+                d.setMonth(d.getMonth() + 1);
+                setCalMonth(d);
+              }}
+              onToday={() => {
+                const d = new Date();
+                d.setDate(1);
+                setCalMonth(d);
+              }}
+            />
+          </div>
+          <div>
+            {selectedEvent ? (
+              <EventCard
+                event={selectedEvent}
+                onUpdate={(fields) => updateMutation.mutate({ id: selectedEvent.id, ...fields })}
+                onAddStep={(text) => addStepMutation.mutate({ eventId: selectedEvent.id, text })}
+                onToggleStep={(stepId, done) =>
+                  toggleStepMutation.mutate({ eventId: selectedEvent.id, stepId, done })
+                }
+                onAddContact={(name, email) =>
+                  addContactMutation.mutate({ eventId: selectedEvent.id, name, email })
+                }
+                forceExpanded
+              />
+            ) : (
+              <div className="bg-white rounded-xl border border-gray-200 p-8 text-center sticky top-4">
+                <p className="text-sm text-gray-500 mb-1">Select an event</p>
+                <p className="text-xs text-gray-400">Click a day or event in the calendar to see details.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* List view begins below — keep the existing sections but only show if in list view */}
+
       {/* Upcoming */}
-      {upcoming.length > 0 && (
+      {view === 'list' && upcoming.length > 0 && (
         <Section title="Upcoming">
           {upcoming.map((evt) => (
             <EventCard
@@ -180,7 +259,7 @@ export default function EventsPage() {
       )}
 
       {/* Past */}
-      {past.length > 0 && (
+      {view === 'list' && past.length > 0 && (
         <Section title="Past">
           {past.map((evt) => (
             <EventCard
@@ -200,7 +279,7 @@ export default function EventsPage() {
       )}
 
       {/* Hidden Events */}
-      {showHidden && hiddenEvents.length > 0 && (
+      {view === 'list' && showHidden && hiddenEvents.length > 0 && (
         <Section title="Hidden">
           {hiddenEvents.map((evt) => (
             <EventCard
@@ -220,7 +299,7 @@ export default function EventsPage() {
       )}
 
       {/* Empty state */}
-      {visibleEvents.length === 0 && (
+      {view === 'list' && visibleEvents.length === 0 && (
         <div className="bg-white rounded-xl border border-gray-200 p-10 text-center">
           <p className="text-gray-500">No events yet. Log your first networking event.</p>
         </div>
@@ -238,6 +317,124 @@ export default function EventsPage() {
   );
 }
 
+function CalendarGrid({ month, events, getEventDate, selectedEventId, onSelectEvent, onPrevMonth, onNextMonth, onToday }) {
+  const monthLabel = month.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  const year = month.getFullYear();
+  const m = month.getMonth();
+  const firstDay = new Date(year, m, 1);
+  const firstWeekday = firstDay.getDay(); // 0=Sun
+  const daysInMonth = new Date(year, m + 1, 0).getDate();
+  const today = new Date();
+  const todayStr = today.toISOString().split('T')[0];
+
+  // Group events by date
+  const eventsByDay = {};
+  events.forEach((e) => {
+    const d = getEventDate(e);
+    if (!d) return;
+    if (d.getFullYear() !== year || d.getMonth() !== m) return;
+    const key = d.toISOString().split('T')[0];
+    if (!eventsByDay[key]) eventsByDay[key] = [];
+    eventsByDay[key].push(e);
+  });
+
+  // Build grid cells — pad start with prev-month placeholders, end with next-month
+  const totalCells = Math.ceil((firstWeekday + daysInMonth) / 7) * 7;
+  const cells = [];
+  for (let i = 0; i < totalCells; i++) {
+    const dayNum = i - firstWeekday + 1;
+    const inMonth = dayNum >= 1 && dayNum <= daysInMonth;
+    const dateObj = new Date(year, m, dayNum);
+    const dateStr = inMonth ? dateObj.toISOString().split('T')[0] : null;
+    cells.push({ dayNum, inMonth, dateObj, dateStr, events: (dateStr && eventsByDay[dateStr]) || [] });
+  }
+
+  const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      {/* Month nav */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+        <div className="flex items-center gap-2">
+          <button onClick={onPrevMonth} className="w-7 h-7 rounded hover:bg-gray-100 cursor-pointer flex items-center justify-center text-gray-600">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <h3 className="text-base font-semibold text-[#1F2D3D]">{monthLabel}</h3>
+          <button onClick={onNextMonth} className="w-7 h-7 rounded hover:bg-gray-100 cursor-pointer flex items-center justify-center text-gray-600">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+        </div>
+        <button onClick={onToday} className="text-xs font-medium text-gray-500 hover:text-[#F97316] cursor-pointer">
+          Today
+        </button>
+      </div>
+
+      {/* Weekday headers */}
+      <div className="grid grid-cols-7 border-b border-gray-100 bg-gray-50/50">
+        {weekdays.map((d) => (
+          <div key={d} className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500 text-center">
+            {d}
+          </div>
+        ))}
+      </div>
+
+      {/* Day cells */}
+      <div className="grid grid-cols-7">
+        {cells.map((cell, i) => {
+          const isToday = cell.dateStr === todayStr;
+          const weekend = i % 7 === 0 || i % 7 === 6;
+          return (
+            <div
+              key={i}
+              className={`min-h-[92px] border-r border-b border-gray-100 p-1.5 ${
+                !cell.inMonth ? 'bg-gray-50/50' : weekend ? 'bg-gray-50/30' : 'bg-white'
+              }`}
+            >
+              {cell.inMonth && (
+                <>
+                  <div
+                    className={`text-xs font-medium mb-1 ${
+                      isToday
+                        ? 'inline-flex items-center justify-center w-5 h-5 rounded-full bg-[#F97316] text-white'
+                        : 'text-gray-600'
+                    }`}
+                  >
+                    {cell.dayNum}
+                  </div>
+                  <div className="space-y-1">
+                    {cell.events.slice(0, 3).map((e) => (
+                      <button
+                        key={e.id}
+                        onClick={() => onSelectEvent(e.id)}
+                        className={`w-full text-left text-[10px] px-1.5 py-0.5 rounded truncate cursor-pointer transition-colors ${
+                          e.id === selectedEventId
+                            ? 'bg-[#F97316] text-white'
+                            : 'bg-[#F97316]/10 text-[#F97316] hover:bg-[#F97316]/20'
+                        }`}
+                        title={e.title}
+                      >
+                        {e.start_time && <span className="font-mono opacity-70 mr-1">{e.start_time}</span>}
+                        {e.title}
+                      </button>
+                    ))}
+                    {cell.events.length > 3 && (
+                      <div className="text-[10px] text-gray-500 px-1.5">+{cell.events.length - 3} more</div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function Section({ title, children }) {
   return (
     <div>
@@ -249,8 +446,9 @@ function Section({ title, children }) {
   );
 }
 
-function EventCard({ event, onUpdate, onAddStep, onToggleStep, onAddContact }) {
-  const [expanded, setExpanded] = useState(false);
+function EventCard({ event, onUpdate, onAddStep, onToggleStep, onAddContact, forceExpanded }) {
+  const [expandedState, setExpanded] = useState(false);
+  const expanded = forceExpanded || expandedState;
   const [notes, setNotes] = useState(event.notes || '');
   const [stepText, setStepText] = useState('');
   const [contactName, setContactName] = useState('');

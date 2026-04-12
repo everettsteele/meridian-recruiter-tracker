@@ -211,10 +211,12 @@ router.get('/calendar/events', requireAuth, async (req, res) => {
 });
 
 // POST /api/google/calendar/sync — pull calendar events into networking
+// Defaults to PRIMARY calendar only. Users can override via calendar config.
 router.post('/calendar/sync', requireAuth, async (req, res) => {
   try {
     const calConfig = await require('../db/store').getCalConfig(req.user.id);
-    const calIds = calConfig.whitelisted_calendar_ids?.length
+    // Default to primary only unless user explicitly whitelisted calendars
+    const calIds = (calConfig.setup_complete && calConfig.whitelisted_calendar_ids?.length)
       ? calConfig.whitelisted_calendar_ids
       : ['primary'];
     const events = await calendar.syncEvents(req.user.id, calIds);
