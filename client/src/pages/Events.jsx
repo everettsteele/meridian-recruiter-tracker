@@ -19,9 +19,11 @@ export default function EventsPage() {
   const [showModal, setShowModal] = useState(false);
   const [showHidden, setShowHidden] = useState(false);
   const [view, setView] = useState('calendar'); // 'calendar' | 'list'
-  const [calMonth, setCalMonth] = useState(() => {
+  // Week start = Sunday of currently viewed week
+  const [weekStart, setWeekStart] = useState(() => {
     const d = new Date();
-    d.setDate(1);
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() - d.getDay());
     return d;
   });
   const [selectedEventId, setSelectedEventId] = useState(null);
@@ -188,28 +190,36 @@ export default function EventsPage() {
       {/* Calendar view */}
       {view === 'calendar' && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div className="lg:col-span-2">
-            <CalendarGrid
-              month={calMonth}
+          <div className="lg:col-span-2 space-y-4">
+            <WeekView
+              weekStart={weekStart}
               events={visibleEvents}
               getEventDate={getEventDate}
               selectedEventId={selectedEventId}
               onSelectEvent={setSelectedEventId}
-              onPrevMonth={() => {
-                const d = new Date(calMonth);
-                d.setMonth(d.getMonth() - 1);
-                setCalMonth(d);
+              onPrevWeek={() => {
+                const d = new Date(weekStart);
+                d.setDate(d.getDate() - 7);
+                setWeekStart(d);
               }}
-              onNextMonth={() => {
-                const d = new Date(calMonth);
-                d.setMonth(d.getMonth() + 1);
-                setCalMonth(d);
+              onNextWeek={() => {
+                const d = new Date(weekStart);
+                d.setDate(d.getDate() + 7);
+                setWeekStart(d);
               }}
               onToday={() => {
                 const d = new Date();
-                d.setDate(1);
-                setCalMonth(d);
+                d.setHours(0, 0, 0, 0);
+                d.setDate(d.getDate() - d.getDay());
+                setWeekStart(d);
               }}
+            />
+            <UpcomingList
+              weekStart={weekStart}
+              events={visibleEvents}
+              getEventDate={getEventDate}
+              selectedEventId={selectedEventId}
+              onSelectEvent={setSelectedEventId}
             />
           </div>
           <div>
@@ -317,119 +327,199 @@ export default function EventsPage() {
   );
 }
 
-function CalendarGrid({ month, events, getEventDate, selectedEventId, onSelectEvent, onPrevMonth, onNextMonth, onToday }) {
-  const monthLabel = month.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-  const year = month.getFullYear();
-  const m = month.getMonth();
-  const firstDay = new Date(year, m, 1);
-  const firstWeekday = firstDay.getDay(); // 0=Sun
-  const daysInMonth = new Date(year, m + 1, 0).getDate();
+function WeekView({ weekStart, events, getEventDate, selectedEventId, onSelectEvent, onPrevWeek, onNextWeek, onToday }) {
   const today = new Date();
+  today.setHours(0, 0, 0, 0);
   const todayStr = today.toISOString().split('T')[0];
+  const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-  // Group events by date
+  // Build 7 days starting from weekStart
+  const days = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(weekStart);
+    d.setDate(d.getDate() + i);
+    days.push(d);
+  }
+
+  const weekStartStr = days[0].toISOString().split('T')[0];
+  const weekEndStr = days[6].toISOString().split('T')[0];
+
+  // Group events by date for this week only
   const eventsByDay = {};
   events.forEach((e) => {
     const d = getEventDate(e);
     if (!d) return;
-    if (d.getFullYear() !== year || d.getMonth() !== m) return;
     const key = d.toISOString().split('T')[0];
+    if (key < weekStartStr || key > weekEndStr) return;
     if (!eventsByDay[key]) eventsByDay[key] = [];
     eventsByDay[key].push(e);
   });
+  // Sort within each day
+  Object.values(eventsByDay).forEach(arr => arr.sort((a, b) => (a.start_time || '99').localeCompare(b.start_time || '99')));
 
-  // Build grid cells — pad start with prev-month placeholders, end with next-month
-  const totalCells = Math.ceil((firstWeekday + daysInMonth) / 7) * 7;
-  const cells = [];
-  for (let i = 0; i < totalCells; i++) {
-    const dayNum = i - firstWeekday + 1;
-    const inMonth = dayNum >= 1 && dayNum <= daysInMonth;
-    const dateObj = new Date(year, m, dayNum);
-    const dateStr = inMonth ? dateObj.toISOString().split('T')[0] : null;
-    cells.push({ dayNum, inMonth, dateObj, dateStr, events: (dateStr && eventsByDay[dateStr]) || [] });
-  }
-
-  const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  // Week label
+  const startLabel = days[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const endLabel = days[6].toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-      {/* Month nav */}
+      {/* Week nav */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
         <div className="flex items-center gap-2">
-          <button onClick={onPrevMonth} className="w-7 h-7 rounded hover:bg-gray-100 cursor-pointer flex items-center justify-center text-gray-600">
+          <button onClick={onPrevWeek} className="w-7 h-7 rounded hover:bg-gray-100 cursor-pointer flex items-center justify-center text-gray-600">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
             </svg>
           </button>
-          <h3 className="text-base font-semibold text-[#1F2D3D]">{monthLabel}</h3>
-          <button onClick={onNextMonth} className="w-7 h-7 rounded hover:bg-gray-100 cursor-pointer flex items-center justify-center text-gray-600">
+          <h3 className="text-base font-semibold text-[#1F2D3D]">{startLabel} – {endLabel}</h3>
+          <button onClick={onNextWeek} className="w-7 h-7 rounded hover:bg-gray-100 cursor-pointer flex items-center justify-center text-gray-600">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
             </svg>
           </button>
         </div>
         <button onClick={onToday} className="text-xs font-medium text-gray-500 hover:text-[#F97316] cursor-pointer">
-          Today
+          This Week
         </button>
       </div>
 
-      {/* Weekday headers */}
-      <div className="grid grid-cols-7 border-b border-gray-100 bg-gray-50/50">
-        {weekdays.map((d) => (
-          <div key={d} className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-gray-500 text-center">
-            {d}
-          </div>
-        ))}
-      </div>
-
-      {/* Day cells */}
+      {/* 7-day grid */}
       <div className="grid grid-cols-7">
-        {cells.map((cell, i) => {
-          const isToday = cell.dateStr === todayStr;
-          const weekend = i % 7 === 0 || i % 7 === 6;
+        {days.map((d, i) => {
+          const dateStr = d.toISOString().split('T')[0];
+          const dayEvents = eventsByDay[dateStr] || [];
+          const isToday = dateStr === todayStr;
+          const isWeekend = i === 0 || i === 6;
+
           return (
             <div
               key={i}
-              className={`min-h-[92px] border-r border-b border-gray-100 p-1.5 ${
-                !cell.inMonth ? 'bg-gray-50/50' : weekend ? 'bg-gray-50/30' : 'bg-white'
-              }`}
+              className={`min-h-[220px] border-r last:border-r-0 border-gray-100 p-2 ${
+                isWeekend ? 'bg-gray-50/30' : 'bg-white'
+              } ${isToday ? 'bg-[#F97316]/5' : ''}`}
             >
-              {cell.inMonth && (
-                <>
-                  <div
-                    className={`text-xs font-medium mb-1 ${
-                      isToday
-                        ? 'inline-flex items-center justify-center w-5 h-5 rounded-full bg-[#F97316] text-white'
-                        : 'text-gray-600'
-                    }`}
-                  >
-                    {cell.dayNum}
-                  </div>
-                  <div className="space-y-1">
-                    {cell.events.slice(0, 3).map((e) => (
-                      <button
-                        key={e.id}
-                        onClick={() => onSelectEvent(e.id)}
-                        className={`w-full text-left text-[10px] px-1.5 py-0.5 rounded truncate cursor-pointer transition-colors ${
-                          e.id === selectedEventId
-                            ? 'bg-[#F97316] text-white'
-                            : 'bg-[#F97316]/10 text-[#F97316] hover:bg-[#F97316]/20'
-                        }`}
-                        title={e.title}
-                      >
-                        {e.start_time && <span className="font-mono opacity-70 mr-1">{e.start_time}</span>}
+              {/* Day header */}
+              <div className="mb-2 pb-1.5 border-b border-gray-100">
+                <div className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+                  {weekdays[i]}
+                </div>
+                <div className={`text-lg font-bold ${isToday ? 'text-[#F97316]' : 'text-[#1F2D3D]'}`}>
+                  {d.getDate()}
+                </div>
+              </div>
+
+              {/* Events for this day */}
+              <div className="space-y-1.5">
+                {dayEvents.length === 0 ? (
+                  <div className="text-[10px] text-gray-300 italic">—</div>
+                ) : (
+                  dayEvents.map((e) => (
+                    <button
+                      key={e.id}
+                      onClick={() => onSelectEvent(e.id)}
+                      className={`w-full text-left text-xs px-2 py-1.5 rounded cursor-pointer transition-colors border-l-2 ${
+                        e.id === selectedEventId
+                          ? 'bg-[#F97316] text-white border-[#EA580C]'
+                          : 'bg-[#F97316]/10 text-[#1F2D3D] border-[#F97316] hover:bg-[#F97316]/20'
+                      }`}
+                      title={e.title}
+                    >
+                      {e.start_time && (
+                        <div className={`text-[9px] font-mono ${e.id === selectedEventId ? 'text-white/80' : 'text-[#F97316]'}`}>
+                          {e.start_time}
+                        </div>
+                      )}
+                      <div className="font-medium leading-tight break-words">
                         {e.title}
-                      </button>
-                    ))}
-                    {cell.events.length > 3 && (
-                      <div className="text-[10px] text-gray-500 px-1.5">+{cell.events.length - 3} more</div>
-                    )}
-                  </div>
-                </>
-              )}
+                      </div>
+                      {e.location && (
+                        <div className={`text-[9px] truncate mt-0.5 ${e.id === selectedEventId ? 'text-white/70' : 'text-gray-500'}`}>
+                          {e.location}
+                        </div>
+                      )}
+                    </button>
+                  ))
+                )}
+              </div>
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+function UpcomingList({ weekStart, events, getEventDate, selectedEventId, onSelectEvent }) {
+  // Show events beyond the current week end (next 30 days)
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekEnd.getDate() + 7);
+  const weekEndStr = weekEnd.toISOString().split('T')[0];
+  const horizon = new Date(weekEnd);
+  horizon.setDate(horizon.getDate() + 30);
+  const horizonStr = horizon.toISOString().split('T')[0];
+
+  const upcoming = events
+    .map((e) => ({ e, d: getEventDate(e) }))
+    .filter(({ d }) => d)
+    .filter(({ d }) => {
+      const key = d.toISOString().split('T')[0];
+      return key >= weekEndStr && key <= horizonStr;
+    })
+    .sort((a, b) => a.d - b.d);
+
+  if (upcoming.length === 0) {
+    return (
+      <div className="bg-white rounded-xl border border-gray-200 p-4">
+        <h3 className="text-sm font-semibold text-[#1F2D3D] mb-2">Upcoming</h3>
+        <p className="text-xs text-gray-400">No events in the next 30 days beyond this week.</p>
+      </div>
+    );
+  }
+
+  // Group by date for better scanability
+  const byDate = {};
+  upcoming.forEach(({ e, d }) => {
+    const key = d.toISOString().split('T')[0];
+    if (!byDate[key]) byDate[key] = { date: d, events: [] };
+    byDate[key].events.push(e);
+  });
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="px-4 py-3 border-b border-gray-100">
+        <h3 className="text-sm font-semibold text-[#1F2D3D]">Upcoming ({upcoming.length})</h3>
+      </div>
+      <div className="divide-y divide-gray-50">
+        {Object.entries(byDate).map(([dateStr, { date, events: dayEvents }]) => (
+          <div key={dateStr} className="p-3">
+            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+              {date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+            </div>
+            <div className="space-y-1">
+              {dayEvents.map((e) => (
+                <button
+                  key={e.id}
+                  onClick={() => onSelectEvent(e.id)}
+                  className={`w-full text-left px-3 py-2 rounded cursor-pointer transition-colors ${
+                    e.id === selectedEventId
+                      ? 'bg-[#F97316]/10 border-l-2 border-[#F97316]'
+                      : 'hover:bg-gray-50'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    {e.start_time && (
+                      <span className="text-xs font-mono text-[#F97316] shrink-0">{e.start_time}</span>
+                    )}
+                    <span className="text-sm text-[#1F2D3D] font-medium truncate flex-1">{e.title}</span>
+                  </div>
+                  {e.location && (
+                    <div className="text-xs text-gray-500 ml-2 truncate">{e.location}</div>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
