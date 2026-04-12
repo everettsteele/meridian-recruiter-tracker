@@ -14,6 +14,7 @@ export default function SettingsPage() {
       <GoogleSection profile={profile} toast={toast} />
       <BillingSection toast={toast} />
       <ResumeSection />
+      <JobSearchSection toast={toast} />
     </div>
   );
 }
@@ -554,6 +555,170 @@ function ResumeSection() {
       ) : (
         <p className="text-sm text-gray-400">No resume variants configured yet.</p>
       )}
+    </div>
+  );
+}
+
+function JobSearchSection({ toast }) {
+  const [sources, setSources] = useState([]);
+  const [config, setConfig] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [allowInput, setAllowInput] = useState('');
+  const [denyInput, setDenyInput] = useState('');
+
+  useEffect(() => {
+    Promise.all([
+      api.get('/job-board/sources'),
+      api.get('/job-board/config'),
+    ]).then(([sourcesData, configData]) => {
+      setSources(sourcesData);
+      setConfig(configData);
+    });
+  }, []);
+
+  if (!config) return null;
+
+  const enabled = config.enabled_sources || [];
+  const allows = config.location_allow || [];
+  const denies = config.location_deny || [];
+
+  const toggleSource = (name) => {
+    const updated = enabled.includes(name)
+      ? enabled.filter((n) => n !== name)
+      : [...enabled, name];
+    setConfig({ ...config, enabled_sources: updated });
+  };
+
+  const addTag = (type, value) => {
+    if (!value.trim()) return;
+    const field = type === 'allow' ? 'location_allow' : 'location_deny';
+    setConfig({ ...config, [field]: [...(config[field] || []), value.trim()] });
+    if (type === 'allow') setAllowInput('');
+    else setDenyInput('');
+  };
+
+  const removeTag = (type, idx) => {
+    const field = type === 'allow' ? 'location_allow' : 'location_deny';
+    const updated = (config[field] || []).filter((_, i) => i !== idx);
+    setConfig({ ...config, [field]: updated });
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await api.patch('/job-board/config', {
+        enabled_sources: enabled,
+        location_allow: allows,
+        location_deny: denies,
+        min_score: config.min_score || 3,
+      });
+      toast('Job search config saved');
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-6">
+      <h3 className="text-base font-semibold text-[#1F2D3D] mb-4">Job Board Crawler</h3>
+      <p className="text-xs text-gray-500 mb-4">
+        Choose which job boards to crawl and filter by location. The crawler runs daily at 6 AM ET or on-demand.
+      </p>
+
+      <div className="space-y-5">
+        {/* Sources */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Enabled Sources</label>
+          <div className="grid grid-cols-2 gap-2">
+            {sources.map((s) => (
+              <label key={s.name} className="flex items-center gap-2 cursor-pointer bg-gray-50 px-3 py-2 rounded-lg hover:bg-gray-100">
+                <input
+                  type="checkbox"
+                  checked={enabled.length === 0 ? true : enabled.includes(s.name)}
+                  onChange={() => toggleSource(s.name)}
+                  className="w-4 h-4 accent-[#F97316]"
+                />
+                <span className="text-sm text-gray-700">{s.label}</span>
+              </label>
+            ))}
+          </div>
+          {enabled.length === 0 && (
+            <p className="text-xs text-gray-400 mt-1">All sources enabled by default (uncheck to exclude)</p>
+          )}
+        </div>
+
+        {/* Location allow */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Location Allowlist</label>
+          <div className="flex flex-wrap gap-2 mb-2">
+            {allows.map((loc, i) => (
+              <span key={i} className="inline-flex items-center gap-1 bg-green-50 text-green-700 text-xs font-medium px-2 py-1 rounded-full">
+                {loc}
+                <button onClick={() => removeTag('allow', i)} className="text-green-700 hover:text-green-900 cursor-pointer">×</button>
+              </span>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <input
+              value={allowInput}
+              onChange={(e) => setAllowInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addTag('allow', allowInput))}
+              placeholder="e.g. atlanta, remote, hybrid"
+              className="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F97316]"
+            />
+            <button onClick={() => addTag('allow', allowInput)} className="text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg cursor-pointer">Add</button>
+          </div>
+        </div>
+
+        {/* Location deny */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Location Denylist</label>
+          <div className="flex flex-wrap gap-2 mb-2">
+            {denies.map((loc, i) => (
+              <span key={i} className="inline-flex items-center gap-1 bg-red-50 text-red-700 text-xs font-medium px-2 py-1 rounded-full">
+                {loc}
+                <button onClick={() => removeTag('deny', i)} className="text-red-700 hover:text-red-900 cursor-pointer">×</button>
+              </span>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <input
+              value={denyInput}
+              onChange={(e) => setDenyInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addTag('deny', denyInput))}
+              placeholder="e.g. san francisco, new york"
+              className="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F97316]"
+            />
+            <button onClick={() => addTag('deny', denyInput)} className="text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg cursor-pointer">Add</button>
+          </div>
+        </div>
+
+        {/* Min score */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Minimum Fit Score (0-10)</label>
+          <input
+            type="number"
+            min={0}
+            max={10}
+            value={config.min_score || 3}
+            onChange={(e) => setConfig({ ...config, min_score: parseInt(e.target.value) || 0 })}
+            className="w-24 px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#F97316]"
+          />
+          <p className="text-xs text-gray-400 mt-1">Only show leads scoring at or above this. Default: 3</p>
+        </div>
+
+        <div className="flex justify-end">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="bg-[#F97316] hover:bg-[#EA580C] text-white text-sm font-medium px-5 py-2 rounded-lg cursor-pointer disabled:opacity-50"
+          >
+            {saving ? 'Saving...' : 'Save Job Search Config'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

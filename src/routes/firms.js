@@ -385,19 +385,47 @@ router.get('/stats', requireAuth, async (req, res) => {
     s.responseRate = s.contacted > 0 ? Math.round((s.conv / s.contacted) * 100) : 0;
   });
 
-  // Daily activity
+  // Daily activity — include emails, applications, and events
   const byDate = {};
+  const bumpDate = (d) => {
+    if (!byDate[d]) byDate[d] = { recruiters: 0, ceos: 0, vcs: 0, applications: 0, events: 0, total: 0 };
+    return byDate[d];
+  };
   allItems.forEach(item => {
     if (!item.last_contacted) return;
-    const d = item.last_contacted;
-    if (!byDate[d]) byDate[d] = { recruiters: 0, ceos: 0, vcs: 0, total: 0 };
     if (['contacted', 'in conversation'].includes(item.status)) {
-      if (item._key === 'firms') byDate[d].recruiters++;
-      if (item._key === 'ceos') byDate[d].ceos++;
-      if (item._key === 'vcs') byDate[d].vcs++;
-      byDate[d].total++;
+      const d = bumpDate(item.last_contacted);
+      if (item._key === 'firms') d.recruiters++;
+      if (item._key === 'ceos') d.ceos++;
+      if (item._key === 'vcs') d.vcs++;
+      d.total++;
     }
   });
+
+  // Pull applications + events from DB for current user (if auth context has it)
+  try {
+    const dbStore = require('../db/store');
+    if (req.user?.tenantId && req.user?.id) {
+      const userApps = await dbStore.listApplications(req.user.tenantId, req.user.id);
+      userApps.forEach(a => {
+        const dt = a.applied_date || (a.created_at && String(a.created_at).split('T')[0]);
+        if (dt && ['applied', 'interviewing', 'offer'].includes(a.status)) {
+          const d = bumpDate(dt);
+          d.applications++;
+          d.total++;
+        }
+      });
+      const userEvents = await dbStore.listEvents(req.user.tenantId, req.user.id, { includeHidden: false });
+      userEvents.forEach(e => {
+        const dt = e.start_date;
+        if (dt) {
+          const d = bumpDate(dt);
+          d.events++;
+          d.total++;
+        }
+      });
+    }
+  } catch (e) { /* fall back to just outreach data */ }
 
   // Sector stats (CEOs only)
   const sBuckets = {};

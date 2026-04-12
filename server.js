@@ -14,6 +14,7 @@ const sseRoutes = require('./src/routes/sse');
 const exportRoutes = require('./src/routes/export');
 const resumeRoutes = require('./src/routes/resumes');
 const billingRoutes = require('./src/routes/billing');
+const morningSyncRoutes = require('./src/routes/morning-sync');
 
 // Middleware
 const { helmetMiddleware, corsMiddleware, globalLimiter } = require('./src/middleware/security');
@@ -47,6 +48,7 @@ app.use('/api/sse', sseRoutes);
 app.use('/api/export', exportRoutes);
 app.use('/api/resumes', resumeRoutes);
 app.use('/api/billing', billingRoutes);
+app.use('/api/morning-sync', morningSyncRoutes);
 
 // ================================================================
 // Daily cron — 6 AM ET outreach queue + job board crawl

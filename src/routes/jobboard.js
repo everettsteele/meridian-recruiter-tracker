@@ -58,6 +58,35 @@ router.post('/job-board/crawl', requireAuth, crawlLimiter, async (req, res) => {
     .catch(e => console.error('[crawl error]', e.message));
 });
 
+// List available job board sources
+router.get('/job-board/sources', requireAuth, async (req, res) => {
+  const { JOB_SOURCES } = require('../services/crawler');
+  const sources = JOB_SOURCES.map(s => ({ name: s.name, label: s.label }));
+  res.json(sources);
+});
+
+// Get user's job search config
+router.get('/job-board/config', requireAuth, async (req, res) => {
+  let config = await db.getJobSearchConfig(req.user.id);
+  if (!config) {
+    config = {
+      enabled_sources: [],
+      search_keywords: [],
+      location_allow: [],
+      location_deny: [],
+      min_score: 3,
+    };
+  }
+  res.json(config);
+});
+
+// Update user's job search config
+router.patch('/job-board/config', requireAuth, async (req, res) => {
+  await db.saveJobSearchConfig(req.user.id, req.body);
+  const updated = await db.getJobSearchConfig(req.user.id);
+  res.json(updated);
+});
+
 router.get('/export/job-board', requireAuth, async (req, res) => {
   const leads = await db.listJobBoardLeads(req.user.tenantId, req.query.status || null);
   if (req.query.format === 'csv') {

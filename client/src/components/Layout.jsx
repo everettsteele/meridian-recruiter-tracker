@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
+import ChangelogModal from './ChangelogModal';
 
 const NAV_SECTIONS = [
   {
@@ -50,6 +51,7 @@ export default function Layout() {
   const { user, logout } = useAuth();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [changelogOpen, setChangelogOpen] = useState(false);
   const pageTitle = getPageTitle(location.pathname);
 
   return (
@@ -126,9 +128,16 @@ export default function Layout() {
               Logout
             </button>
           </div>
-          <div className="text-[10px] text-gray-500 mt-2">v9.0</div>
+          <button
+            onClick={() => setChangelogOpen(true)}
+            className="text-[10px] text-gray-500 hover:text-[#F97316] mt-2 cursor-pointer transition-colors"
+          >
+            v10.0 — changelog
+          </button>
         </div>
       </aside>
+
+      {changelogOpen && <ChangelogModal onClose={() => setChangelogOpen(false)} />}
 
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0">

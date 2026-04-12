@@ -368,6 +368,12 @@ async function getJobSearchConfig(userId) {
 }
 
 async function saveJobSearchConfig(userId, data) {
+  // Ensure row exists first
+  await query(
+    `INSERT INTO job_search_config (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING`,
+    [userId]
+  );
+
   const allowed = ['enabled_sources', 'search_keywords', 'location_allow', 'location_deny', 'min_score'];
   const sets = [];
   const values = [];

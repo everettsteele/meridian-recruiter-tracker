@@ -8,19 +8,19 @@ const PILLAR_CONFIG = {
   recruiters: {
     label: 'Recruiter',
     endpoint: '/firms',
-    nameKey: 'firm_name',
+    nameKey: 'name',
     statusKey: 'status',
   },
   ceos: {
     label: 'CEO',
     endpoint: '/ceos',
-    nameKey: 'company_name',
+    nameKey: 'company',
     statusKey: 'status',
   },
   vcs: {
     label: 'VC',
     endpoint: '/vcs',
-    nameKey: 'firm_name',
+    nameKey: 'firm',
     statusKey: 'status',
   },
 };
