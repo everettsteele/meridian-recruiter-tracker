@@ -144,7 +144,18 @@ router.delete('/applications/:id', requireAuth, async (req, res) => {
 // POST /applications/bulk — apply an action to many application ids at once.
 // Fast actions (set_status, delete, snooze) run inline. generate_letter
 // spawns a background job that the client polls for updates.
-router.post('/applications/bulk', requireAuth, validate(schemas.bulkApplicationAction), async (req, res) => {
+const bulkGateAiOnly = (mw) => (req, res, next) => {
+  if (req.body?.action !== 'generate_letter') return next();
+  return mw(req, res, next);
+};
+
+router.post(
+  '/applications/bulk',
+  requireAuth,
+  validate(schemas.bulkApplicationAction),
+  bulkGateAiOnly(expensiveLimiter),
+  bulkGateAiOnly(checkAiLimit('cover_letters')),
+  async (req, res) => {
   const { ids, action, value } = req.body;
   const tenantId = req.user.tenantId;
 
