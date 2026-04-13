@@ -222,11 +222,26 @@ router.post('/applications/:id/generate-letter', requireAuth, checkAiLimit('cove
       return res.status(500).json({ error: 'AI returned empty letter' });
     }
 
+    // Auto-select resume variant if not already set
     const today = todayET();
-    const updated = await db.updateApplication(req.user.tenantId, app.id, {
-      cover_letter_text: coverLetter,
-      last_activity: today,
-    });
+    const patch = { cover_letter_text: coverLetter, last_activity: today };
+    if (!app.resume_variant) {
+      try {
+        const userVariants = await getResumeVariants(req.user.id);
+        const variant = await selectResumeVariant(app, jdText, {
+          fullName: req.user.fullName,
+          variants: userVariants,
+        });
+        if (variant) {
+          patch.resume_variant = variant;
+          await db.logUsage(req.user.tenantId, req.user.id, 'variant_select', 20, { company: app.company, variant });
+        }
+      } catch (e) {
+        diagLog('generate-letter auto-select failed: ' + e.message);
+      }
+    }
+
+    const updated = await db.updateApplication(req.user.tenantId, app.id, patch);
     await db.logUsage(req.user.tenantId, req.user.id, 'cover_letters', 700, { company: app.company, single: true });
 
     res.json({ ok: true, application: updated });
@@ -234,6 +249,63 @@ router.post('/applications/:id/generate-letter', requireAuth, checkAiLimit('cove
     console.error('[generate-letter]', e.message);
     res.status(500).json({ error: e.message });
   }
+});
+
+// Batch: generate cover letters + auto-select resume for all "identified" apps
+router.post('/applications/batch-generate-letters', requireAuth, expensiveLimiter, checkAiLimit('cover_letters'), async (req, res) => {
+  if (!process.env.ANTHROPIC_API_KEY) return res.status(503).json({ error: 'ANTHROPIC_API_KEY not configured' });
+
+  const apps = await db.listApplications(req.user.tenantId, req.user.id);
+  const targets = apps.filter(a => a.status === 'identified' && !a.cover_letter_text);
+  if (!targets.length) return res.json({ ok: true, built: 0, message: 'No identified applications need cover letters' });
+
+  const userId = req.user.id;
+  const tenantId = req.user.tenantId;
+  const userProfile = req.user.profile || {};
+
+  diagLog(`BATCH-LETTERS starting for ${targets.length} identified apps (user=${userId})`);
+  res.json({ ok: true, queued: targets.length, message: `Generating cover letters for ${targets.length} applications in background.` });
+
+  setImmediate(async () => {
+    let built = 0, failed = 0;
+    const userVariants = await getResumeVariants(userId);
+    for (let i = 0; i < targets.length; i++) {
+      const appRec = targets[i];
+      try {
+        sendSSE(userId, 'progress', { current: i + 1, total: targets.length, company: appRec.company });
+        let jdText = '';
+        if (appRec.source_url) jdText = await fetchJobDescription(appRec.source_url);
+        if (!jdText || jdText.length < 50) jdText = `Position: ${appRec.role} at ${appRec.company}. ${appRec.notes || ''}`.trim();
+
+        const coverLetter = await generateCoverLetter(appRec, jdText, {
+          fullName: req.user.fullName,
+          backgroundText: userProfile.backgroundText,
+        });
+        if (!coverLetter || coverLetter.length < 50) { failed++; continue; }
+
+        const today = todayET();
+        const patch = { cover_letter_text: coverLetter, last_activity: today };
+        if (!appRec.resume_variant) {
+          try {
+            const variant = await selectResumeVariant(appRec, jdText, {
+              fullName: req.user.fullName,
+              variants: userVariants,
+            });
+            if (variant) {
+              patch.resume_variant = variant;
+              await db.logUsage(tenantId, userId, 'variant_select', 20, { company: appRec.company, variant });
+            }
+          } catch (e) { diagLog('BATCH-LETTERS auto-select failed: ' + e.message); }
+        }
+        await db.updateApplication(tenantId, appRec.id, patch);
+        await db.logUsage(tenantId, userId, 'cover_letter', 700, { company: appRec.company });
+        built++;
+        await new Promise(r => setTimeout(r, 1500));
+      } catch (err) { diagLog('BATCH-LETTERS EXCEPTION: ' + err.message); failed++; }
+    }
+    sendSSE(userId, 'complete', { built, failed });
+    diagLog(`BATCH-LETTERS complete. Built: ${built}, Failed: ${failed}`);
+  });
 });
 
 // Batch packages — generate cover letters + Drive folders

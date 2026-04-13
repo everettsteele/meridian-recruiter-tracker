@@ -29,6 +29,11 @@ export default function ApplicationsPage() {
     queryFn: () => api.get('/applications'),
   });
 
+  const { data: variants = [] } = useQuery({
+    queryKey: ['resume-variants'],
+    queryFn: () => api.get('/resumes'),
+  });
+
   const addMutation = useMutation({
     mutationFn: (app) => api.post('/applications', app),
     onSuccess: () => {
@@ -76,6 +81,17 @@ export default function ApplicationsPage() {
     onError: (err) => toast(err.message, 'error'),
   });
 
+  const generateAllMutation = useMutation({
+    mutationFn: () => api.post('/applications/batch-generate-letters'),
+    onSuccess: (data) => {
+      toast(data?.message || 'Generating cover letters');
+      // Poll for updates while the background job runs
+      const poll = setInterval(() => queryClient.invalidateQueries({ queryKey: ['applications'] }), 4000);
+      setTimeout(() => clearInterval(poll), 120000);
+    },
+    onError: (err) => toast(err.message, 'error'),
+  });
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -101,6 +117,7 @@ export default function ApplicationsPage() {
   const appList = Array.isArray(data) ? data : data?.applications || [];
   const filtered = filter === 'all' ? appList : appList.filter((a) => a.status === filter);
   const needsPackages = appList.some((a) => a.status === 'materials_prep' || a.status === 'ready_to_apply');
+  const identifiedNeedingLetter = appList.filter((a) => a.status === 'identified' && !a.cover_letter_text);
 
   return (
     <div className="space-y-4">
@@ -117,6 +134,16 @@ export default function ApplicationsPage() {
               className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
             >
               Build Queued Packages
+            </button>
+          )}
+          {identifiedNeedingLetter.length > 0 && (
+            <button
+              onClick={() => generateAllMutation.mutate()}
+              disabled={generateAllMutation.isPending}
+              title={`Generate cover letters + auto-pick resume for ${identifiedNeedingLetter.length} identified ${identifiedNeedingLetter.length === 1 ? 'app' : 'apps'}`}
+              className="text-xs bg-[#F97316] hover:bg-[#EA580C] text-white px-3 py-1.5 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+            >
+              {generateAllMutation.isPending ? 'Starting...' : `Generate All (${identifiedNeedingLetter.length})`}
             </button>
           )}
         </div>
@@ -166,6 +193,7 @@ export default function ApplicationsPage() {
                 <ApplicationRow
                   key={app.id}
                   app={app}
+                  variants={variants}
                   onUpdate={(fields) => updateMutation.mutate({ id: app.id, ...fields })}
                   onShowCoverLetter={(a) => setCoverLetterApp(a)}
                   onShowResume={(a) => setResumeApp(a)}
@@ -284,7 +312,7 @@ function ResumeTextFetch({ slug }) {
   );
 }
 
-function ApplicationRow({ app, onUpdate, onDelete, onShowCoverLetter, onShowResume }) {
+function ApplicationRow({ app, variants = [], onUpdate, onDelete, onShowCoverLetter, onShowResume }) {
   const statusInfo = APP_STATUSES[app.status] || APP_STATUSES.identified;
   const followUp = app.follow_up_date || app.followup_date;
   const sourceUrl = app.source_url || app.url;
@@ -331,10 +359,20 @@ function ApplicationRow({ app, onUpdate, onDelete, onShowCoverLetter, onShowResu
           className="text-xs border border-gray-200 rounded px-2 py-1 cursor-pointer hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-[#F97316]"
         >
           <option value="">— none —</option>
-          <option value="operator">Operator</option>
-          <option value="partner">Partner</option>
-          <option value="builder">Builder</option>
-          <option value="innovator">Innovator</option>
+          {(variants.length
+            ? variants
+            : [
+                { slug: 'operator', label: 'Operator' },
+                { slug: 'partner', label: 'Partner' },
+                { slug: 'builder', label: 'Builder' },
+                { slug: 'innovator', label: 'Innovator' },
+              ]
+          ).map((v) => (
+            <option key={v.slug} value={v.slug}>{v.label || v.slug}</option>
+          ))}
+          {app.resume_variant && !variants.some((v) => v.slug === app.resume_variant) && (
+            <option value={app.resume_variant}>{app.resume_variant}</option>
+          )}
         </select>
       </td>
       <td className="px-4 py-3">
