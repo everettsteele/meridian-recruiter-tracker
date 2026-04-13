@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { api } from '../../lib/api';
 
 export default function ApplicationRow({
   app, variants = [], selected, onToggleSelect,
@@ -121,13 +122,147 @@ export default function ApplicationRow({
       {expanded && (
         <tr className="bg-gray-50 border-b border-gray-100">
           <td colSpan={8} className="px-6 py-4">
-            <div className="text-xs text-gray-400">Expanded details coming in the next task.</div>
+            <ExpandedDetail app={app} onUpdate={onUpdate} variants={variants} />
           </td>
         </tr>
       )}
     </>
   );
 }
+
+function ExpandedDetail({ app, onUpdate, variants }) {
+  const [tab, setTab] = useState(app.status === 'interviewing' ? 'interview' : 'timeline');
+  const activity = Array.isArray(app.activity) ? app.activity : [];
+  const variantRow = variants.find((v) => v.slug === app.resume_variant);
+
+  return (
+    <div className="bg-white rounded-lg border border-gray-200">
+      <div className="flex items-center gap-1 border-b border-gray-100 px-3 pt-2">
+        {[
+          ['timeline', 'Timeline'],
+          ['notes', 'Notes'],
+          ['people', 'People'],
+          ['materials', 'Materials'],
+          ...(app.status === 'interviewing' ? [['interview', 'Interview Prep']] : []),
+        ].map(([k, label]) => (
+          <button
+            key={k}
+            onClick={() => setTab(k)}
+            className={`text-xs font-medium px-3 py-1.5 border-b-2 cursor-pointer ${
+              tab === k ? 'border-[#F97316] text-[#F97316]' : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <div className="p-4">
+        {tab === 'timeline' && <TimelineTab activity={activity} />}
+        {tab === 'notes' && <NotesTab app={app} onUpdate={onUpdate} />}
+        {tab === 'people' && <PeopleTab app={app} />}
+        {tab === 'materials' && <MaterialsTab app={app} variantRow={variantRow} />}
+        {tab === 'interview' && <InterviewTabLazy app={app} />}
+      </div>
+    </div>
+  );
+}
+
+function TimelineTab({ activity }) {
+  if (!activity.length) return <div className="text-xs text-gray-400">No activity yet.</div>;
+  const reversed = [...activity].reverse();
+  return (
+    <ul className="space-y-1.5 max-h-64 overflow-y-auto">
+      {reversed.map((e, i) => (
+        <li key={i} className="flex items-start gap-2 text-xs">
+          <span className="text-gray-400 whitespace-nowrap w-20">{e.date || ''}</span>
+          <span className="px-1.5 py-0.5 bg-gray-100 text-gray-700 rounded font-medium uppercase tracking-wide text-[10px]">
+            {e.type}
+          </span>
+          <span className="flex-1 text-gray-600">{e.note || ''}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function NotesTab({ app, onUpdate }) {
+  const [text, setText] = useState(app.notes || '');
+  const [dirty, setDirty] = useState(false);
+  useEffect(() => { setText(app.notes || ''); setDirty(false); }, [app.id]);
+
+  const save = () => {
+    if (!dirty) return;
+    onUpdate({ notes: text });
+    setDirty(false);
+  };
+
+  return (
+    <div>
+      <textarea
+        value={text}
+        onChange={(e) => { setText(e.target.value); setDirty(true); }}
+        onBlur={save}
+        rows={6}
+        placeholder="Notes about this application..."
+        className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#F97316]"
+      />
+      <div className="mt-1 text-[10px] text-gray-400">
+        {dirty ? 'Unsaved — click outside to save' : 'Saved'}
+      </div>
+    </div>
+  );
+}
+
+function MaterialsTab({ app, variantRow }) {
+  const [resumeText, setResumeText] = useState(null);
+  useEffect(() => {
+    let cancel = false;
+    if (!app.resume_variant) { setResumeText(''); return; }
+    api.get(`/resumes/${app.resume_variant}/text`)
+      .then((d) => { if (!cancel) setResumeText(d?.parsed_text || ''); })
+      .catch(() => { if (!cancel) setResumeText(''); });
+    return () => { cancel = true; };
+  }, [app.resume_variant]);
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-xs font-semibold text-[#1F2D3D]">Cover Letter</span>
+          {app.cover_letter_text && (
+            <button
+              onClick={() => navigator.clipboard.writeText(app.cover_letter_text)}
+              className="text-[10px] text-[#F97316] hover:underline cursor-pointer"
+            >Copy</button>
+          )}
+        </div>
+        <pre className="text-xs bg-gray-50 rounded border border-gray-200 p-3 whitespace-pre-wrap font-sans max-h-64 overflow-y-auto">
+          {app.cover_letter_text || '(not generated yet)'}
+        </pre>
+      </div>
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-xs font-semibold text-[#1F2D3D]">
+            Resume — {variantRow?.label || app.resume_variant || '(none)'}
+          </span>
+          {resumeText && (
+            <button
+              onClick={() => navigator.clipboard.writeText(resumeText)}
+              className="text-[10px] text-[#F97316] hover:underline cursor-pointer"
+            >Copy</button>
+          )}
+        </div>
+        <pre className="text-xs bg-gray-50 rounded border border-gray-200 p-3 whitespace-pre-wrap font-sans max-h-64 overflow-y-auto">
+          {resumeText === null ? 'Loading...' : (resumeText || '(no variant attached)')}
+        </pre>
+      </div>
+    </div>
+  );
+}
+
+function PeopleTab() { return <div className="text-xs text-gray-400">Coming up in Task 12.</div>; }
+
+function InterviewTabLazy() { return <div className="text-xs text-gray-400">Coming up in Task 13.</div>; }
 
 export const STATUS_INFO = {
   identified: { label: 'Identified', color: 'bg-gray-100 text-gray-700' },
