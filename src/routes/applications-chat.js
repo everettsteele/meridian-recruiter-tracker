@@ -91,9 +91,11 @@ router.post('/applications/:id/chat', requireAuth, expensiveLimiter,
     activity: Array.isArray(app.activity) ? app.activity : [],
   });
 
+  // Persist the user message first so it's retained even if the model call fails.
+  await db.appendChatMessage(req.user.tenantId, app.id, 'user', req.body.message, 0, 0);
+
   const history = await db.listChatMessages(req.user.tenantId, app.id);
   const messages = history.map((m) => ({ role: m.role, content: m.content }));
-  messages.push({ role: 'user', content: req.body.message });
 
   let reply = '';
   let tokensIn = 0;
@@ -118,7 +120,6 @@ router.post('/applications/:id/chat', requireAuth, expensiveLimiter,
 
   if (!reply) return res.status(500).json({ error: 'Empty reply from model' });
 
-  await db.appendChatMessage(req.user.tenantId, app.id, 'user', req.body.message, 0, 0);
   const stored = await db.appendChatMessage(req.user.tenantId, app.id, 'assistant', reply, tokensIn, tokensOut);
   await logAiUsage(req.user.tenantId, req.user.id, 'interview_chat', tokensIn + tokensOut, {
     company: app.company, role: app.role,
