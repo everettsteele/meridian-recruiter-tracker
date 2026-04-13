@@ -665,16 +665,21 @@ function BillingSection({ toast }) {
 }
 
 function ResumeSection() {
+  const { user, profile } = useAuth();
+  const isPro = !!user?.isPro;
+  const variantLimit = isPro ? 4 : 1;
   const [variants, setVariants] = useState([]);
-  const [uploading, setUploading] = useState(null);
+  const [uploading, setUploading] = useState(false);
   const [generating, setGenerating] = useState(false);
-  const [targetRole, setTargetRole] = useState('');
+  const [selectedAngles, setSelectedAngles] = useState([]);
+  const [customAngle, setCustomAngle] = useState('');
+  const [previewSlug, setPreviewSlug] = useState(null);
   const { toast } = useToast();
 
   const loadVariants = async () => {
     try {
       const data = await api.get('/resumes');
-      setVariants(data);
+      setVariants(Array.isArray(data) ? data : []);
     } catch (e) {
       console.error('Failed to load resumes:', e);
     }
@@ -682,68 +687,81 @@ function ResumeSection() {
 
   useEffect(() => { loadVariants(); }, []);
 
-  const handleUpload = async (slug, file) => {
+  const targetRoles = profile?.target_roles || profile?.targetRoles || [];
+
+  // Base = the slug='base' row if present, else fall back to any legacy variant that has an uploaded PDF.
+  const base =
+    variants.find((v) => v.slug === 'base' && (v.filename || v.has_content)) ||
+    variants.find((v) => v.filename);
+  const angles = variants.filter((v) => v !== base && v.has_content);
+  const legacyEmpty = variants.filter((v) => v !== base && !v.has_content && !v.filename);
+
+  const handleBaseUpload = async (file) => {
     if (!file || file.type !== 'application/pdf') {
       toast('Please select a PDF file', 'error');
       return;
     }
-    setUploading(slug);
+    setUploading(true);
     try {
       const formData = new FormData();
       formData.append('file', file);
-      const res = await fetch(`/api/resumes/${slug}/upload`, {
+      const token = localStorage.getItem('snag_token') || localStorage.getItem('hopespot_token') || '';
+      const res = await fetch('/api/resumes/base/upload', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${(localStorage.getItem('snag_token') || localStorage.getItem('hopespot_token'))}` },
+        headers: { Authorization: `Bearer ${token}` },
         body: formData,
       });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || 'Upload failed');
-      }
-      toast('Resume uploaded');
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || `Upload failed (${res.status})`);
+      toast('Base resume uploaded');
       loadVariants();
     } catch (err) {
       toast(err.message, 'error');
     } finally {
-      setUploading(null);
+      setUploading(false);
     }
   };
 
-  const handleRemove = async (slug) => {
+  const handleDelete = async (slug) => {
     try {
-      await api.del(`/resumes/${slug}/file`);
-      toast('Resume removed');
+      await api.del(`/resumes/${slug}`);
+      toast('Removed');
       loadVariants();
     } catch (err) {
       toast(err.message, 'error');
     }
   };
 
-  const handleSetDefault = async (slug) => {
-    try {
-      await api.patch(`/resumes/${slug}/default`);
-      toast('Default updated');
-      loadVariants();
-    } catch (err) {
-      toast(err.message, 'error');
-    }
+  const toggleAngle = (name) => {
+    setSelectedAngles((prev) => {
+      if (prev.includes(name)) return prev.filter((n) => n !== name);
+      if (prev.length >= variantLimit) {
+        toast(`${isPro ? 'Pro' : 'Free'} plan allows up to ${variantLimit} variant${variantLimit === 1 ? '' : 's'}.`, 'error');
+        return prev;
+      }
+      return [...prev, name];
+    });
+  };
+
+  const addCustomAngle = () => {
+    const name = customAngle.trim();
+    if (!name) return;
+    toggleAngle(name);
+    setCustomAngle('');
   };
 
   const handleGenerate = async () => {
-    const base = variants.find((v) => v.is_default) || variants[0];
-    if (!base) { toast('Set a default variant first', 'error'); return; }
+    if (!base) { toast('Upload a base resume first', 'error'); return; }
+    if (!selectedAngles.length) { toast('Pick at least one angle', 'error'); return; }
     setGenerating(true);
     try {
-      const result = await api.post('/resumes/generate', {
-        baseSlug: base.slug,
-        targetRole: targetRole || 'senior operations leadership',
-        angles: ['operator', 'partner', 'builder', 'innovator'],
+      const result = await api.post('/resumes/generate-variants', {
+        angles: selectedAngles.map((name) => ({ name })),
       });
-      const succeeded = result.results.filter((r) => r.ok).length;
-      const failed = result.results.filter((r) => !r.ok).length;
-      toast(
-        `Generated ${succeeded} variant${succeeded !== 1 ? 's' : ''}${failed > 0 ? ` (${failed} failed)` : ''}`
-      );
+      const ok = result.results?.filter((r) => r.ok).length || 0;
+      const failed = result.results?.filter((r) => !r.ok).length || 0;
+      toast(`Generated ${ok} variant${ok === 1 ? '' : 's'}${failed > 0 ? ` (${failed} failed)` : ''}`);
+      setSelectedAngles([]);
       loadVariants();
     } catch (err) {
       toast(err.message || 'Generation failed', 'error');
@@ -752,136 +770,250 @@ function ResumeSection() {
     }
   };
 
-  const hasBase = variants.some((v) => v.has_content || v.filename);
+  const handleCleanupLegacy = async () => {
+    if (!window.confirm(`Remove ${legacyEmpty.length} unused legacy variant slot${legacyEmpty.length === 1 ? '' : 's'}?`)) return;
+    try {
+      for (const v of legacyEmpty) {
+        await api.del(`/resumes/${v.slug}`);
+      }
+      toast('Cleaned up');
+      loadVariants();
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  };
+
+  const previewVariant = variants.find((v) => v.slug === previewSlug);
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-6">
-      <h3 className="text-base font-semibold text-[#1F2D3D] mb-2">Resume Variants</h3>
+      <h3 className="text-base font-semibold text-[#1F2D3D] mb-2">Resumes</h3>
       <p className="text-xs text-gray-500 mb-4">
-        Upload your base resume as a PDF, then generate AI variants tailored to different positioning angles.
-        Free plan gets 1 angle; Pro gets all 4.
+        Upload one base resume. Then generate up to {variantLimit} AI-angled variants tuned to the kinds of
+        jobs you're targeting — each variant keeps your facts intact but reshapes the emphasis.
+        {!isPro && <span className="text-[#F97316]"> Pro plan unlocks all 4 angles.</span>}
       </p>
 
-      {hasBase && (
-        <div className="bg-gradient-to-r from-[#1F2D3D] to-[#2C3E50] text-white rounded-lg p-4 mb-4">
-          <div className="flex items-start justify-between gap-3 mb-2">
-            <div>
-              <div className="text-sm font-semibold">Generate Variants from Base Resume</div>
-              <div className="text-xs text-white/70 mt-0.5">
-                AI rewrites your resume 4 ways — operator, partner, builder, innovator — keeping your facts but shifting emphasis.
-              </div>
+      {/* Base resume card */}
+      <div className="mb-5">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-sm font-semibold text-[#1F2D3D]">Base Resume</span>
+          {base?.text_length > 0 && (
+            <span className="text-[11px] text-gray-400">{Math.round((base.text_length || 0) / 100) / 10}K chars parsed</span>
+          )}
+        </div>
+        {base ? (
+          <div className="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-3">
+            <div className="min-w-0 flex-1">
+              <div className="text-sm text-[#1F2D3D] truncate">{base.filename || '(generated text)'}</div>
+              <div className="text-[11px] text-gray-400">Used as the source for AI variants and cover letters.</div>
+            </div>
+            <div className="flex items-center gap-3 ml-3">
+              <label className="text-xs text-blue-600 hover:text-blue-700 cursor-pointer">
+                {uploading ? 'Uploading...' : 'Replace'}
+                <input
+                  type="file"
+                  accept=".pdf"
+                  className="hidden"
+                  disabled={uploading}
+                  onChange={(e) => handleBaseUpload(e.target.files[0])}
+                />
+              </label>
             </div>
           </div>
-          <div className="flex gap-2">
+        ) : (
+          <label className={`flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg py-8 cursor-pointer hover:border-[#F97316] hover:bg-[#F97316]/5 transition-colors ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
+            <span className="text-sm font-medium text-gray-600 mb-1">
+              {uploading ? 'Uploading...' : 'Upload your base resume'}
+            </span>
+            <span className="text-[11px] text-gray-400">PDF, text-based (scanned images won't work)</span>
             <input
-              value={targetRole}
-              onChange={(e) => setTargetRole(e.target.value)}
-              placeholder="Target role (e.g. Chief of Staff at a Series B startup)"
+              type="file"
+              accept=".pdf"
+              className="hidden"
+              onChange={(e) => handleBaseUpload(e.target.files[0])}
+            />
+          </label>
+        )}
+      </div>
+
+      {/* Angle selection & generation */}
+      {base && (
+        <div className="bg-gradient-to-r from-[#1F2D3D] to-[#2C3E50] text-white rounded-lg p-4 mb-4">
+          <div className="text-sm font-semibold mb-0.5">Generate angled variants</div>
+          <div className="text-xs text-white/70 mb-3">
+            Pick the positionings you want to target{isPro ? ` (up to 4)` : ` (1 on Free)`}. We'll rewrite your base resume for each.
+          </div>
+
+          {targetRoles.length > 0 && (
+            <div className="mb-3">
+              <div className="text-[11px] uppercase tracking-wide text-white/50 mb-1.5">From your target roles</div>
+              <div className="flex flex-wrap gap-1.5">
+                {targetRoles.map((role) => {
+                  const on = selectedAngles.includes(role);
+                  const atLimit = !on && selectedAngles.length >= variantLimit;
+                  return (
+                    <button
+                      key={role}
+                      type="button"
+                      onClick={() => toggleAngle(role)}
+                      disabled={atLimit}
+                      className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                        on
+                          ? 'bg-[#F97316] border-[#F97316] text-white'
+                          : atLimit
+                          ? 'bg-white/5 border-white/10 text-white/30 cursor-not-allowed'
+                          : 'bg-white/5 border-white/20 text-white hover:bg-white/10 cursor-pointer'
+                      }`}
+                    >
+                      {role}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          <div className="flex gap-2 mb-3">
+            <input
+              value={customAngle}
+              onChange={(e) => setCustomAngle(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addCustomAngle())}
+              placeholder="Add a custom angle (e.g. Chief of Staff at a Series B startup)"
               className="flex-1 px-3 py-1.5 rounded text-sm bg-white/10 border border-white/20 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-[#F97316]"
             />
             <button
-              onClick={handleGenerate}
-              disabled={generating}
-              className="bg-[#F97316] hover:bg-[#EA580C] text-white text-sm font-semibold px-4 py-1.5 rounded cursor-pointer disabled:opacity-50 whitespace-nowrap"
+              type="button"
+              onClick={addCustomAngle}
+              className="text-sm bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded cursor-pointer"
             >
-              {generating ? 'Generating...' : 'Generate'}
+              Add
+            </button>
+          </div>
+
+          {selectedAngles.length > 0 && (
+            <div className="mb-3">
+              <div className="text-[11px] uppercase tracking-wide text-white/50 mb-1.5">
+                Selected ({selectedAngles.length}/{variantLimit})
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {selectedAngles.map((name) => (
+                  <span key={name} className="inline-flex items-center gap-1.5 text-xs bg-[#F97316] text-white px-2.5 py-1 rounded-full">
+                    {name}
+                    <button
+                      type="button"
+                      onClick={() => toggleAngle(name)}
+                      className="hover:text-white/70 cursor-pointer"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-end">
+            <button
+              onClick={handleGenerate}
+              disabled={generating || !selectedAngles.length}
+              className="bg-[#F97316] hover:bg-[#EA580C] text-white text-sm font-semibold px-4 py-1.5 rounded cursor-pointer disabled:opacity-40 whitespace-nowrap"
+            >
+              {generating ? 'Generating...' : `Generate ${selectedAngles.length || ''} variant${selectedAngles.length === 1 ? '' : 's'}`.trim()}
             </button>
           </div>
         </div>
       )}
 
-      {variants.length > 0 ? (
-        <div className="space-y-3">
-          {variants.map((v) => (
-            <div
-              key={v.slug}
-              className="py-3 px-4 bg-gray-50 rounded-lg"
-            >
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-[#1F2D3D]">{v.label}</span>
-                  <span className="text-xs text-gray-400 bg-gray-200 px-1.5 py-0.5 rounded">{v.slug}</span>
-                  {v.is_default && (
-                    <span className="text-xs text-[#F97316] bg-[#F97316]/10 px-1.5 py-0.5 rounded font-medium">default</span>
-                  )}
+      {/* Generated variants list */}
+      {angles.length > 0 && (
+        <div className="space-y-2">
+          <div className="text-sm font-semibold text-[#1F2D3D] mb-2">Your angled variants</div>
+          {angles.map((v) => (
+            <div key={v.slug} className="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-3">
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-medium text-[#1F2D3D] truncate">{v.label}</div>
+                <div className="text-[11px] text-gray-400">
+                  {v.has_content ? `${Math.round((v.text_length || 0) / 100) / 10}K chars · AI-generated` : 'empty'}
+                  <span className="ml-2 font-mono text-gray-300">{v.slug}</span>
                 </div>
-                {!v.is_default && v.filename && (
-                  <button
-                    onClick={() => handleSetDefault(v.slug)}
-                    className="text-xs text-gray-500 hover:text-[#F97316] cursor-pointer"
-                  >
-                    Set as default
-                  </button>
-                )}
               </div>
-              {v.filename ? (
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-600">
-                    {v.filename}
-                    {v.has_content && (
-                      <span className="ml-2 text-green-600">· {Math.round((v.text_length || 0) / 100) / 10}K chars parsed</span>
-                    )}
-                  </span>
-                  <div className="flex items-center gap-3">
-                    <label className="text-xs text-blue-600 hover:text-blue-700 cursor-pointer">
-                      Replace
-                      <input
-                        type="file"
-                        accept=".pdf"
-                        className="hidden"
-                        onChange={(e) => handleUpload(v.slug, e.target.files[0])}
-                      />
-                    </label>
-                    <button
-                      onClick={() => handleRemove(v.slug)}
-                      className="text-xs text-red-500 hover:text-red-600 cursor-pointer"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                </div>
-              ) : v.has_content ? (
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-green-600">
-                    AI-generated · {Math.round((v.text_length || 0) / 100) / 10}K chars
-                  </span>
-                  <div className="flex items-center gap-3">
-                    <label className="text-xs text-blue-600 hover:text-blue-700 cursor-pointer">
-                      Upload PDF
-                      <input
-                        type="file"
-                        accept=".pdf"
-                        className="hidden"
-                        onChange={(e) => handleUpload(v.slug, e.target.files[0])}
-                      />
-                    </label>
-                    <button
-                      onClick={() => handleRemove(v.slug)}
-                      className="text-xs text-red-500 hover:text-red-600 cursor-pointer"
-                    >
-                      Clear
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <label className={`flex items-center justify-center border-2 border-dashed border-gray-300 rounded-lg py-3 cursor-pointer hover:border-[#F97316] hover:bg-[#F97316]/5 transition-colors ${uploading === v.slug ? 'opacity-50 pointer-events-none' : ''}`}>
-                  <span className="text-xs text-gray-500">
-                    {uploading === v.slug ? 'Uploading...' : 'Drop PDF or click to upload'}
-                  </span>
-                  <input
-                    type="file"
-                    accept=".pdf"
-                    className="hidden"
-                    onChange={(e) => handleUpload(v.slug, e.target.files[0])}
-                  />
-                </label>
-              )}
+              <div className="flex items-center gap-3 ml-3">
+                <button
+                  onClick={() => setPreviewSlug(v.slug)}
+                  className="text-xs text-blue-600 hover:text-blue-700 cursor-pointer"
+                >
+                  View
+                </button>
+                <button
+                  onClick={() => handleDelete(v.slug)}
+                  className="text-xs text-red-500 hover:text-red-600 cursor-pointer"
+                >
+                  Delete
+                </button>
+              </div>
             </div>
           ))}
         </div>
-      ) : (
-        <p className="text-sm text-gray-400">No resume variants configured yet.</p>
       )}
+
+      {/* Legacy cleanup prompt */}
+      {legacyEmpty.length > 0 && (
+        <div className="mt-4 flex items-center justify-between text-xs text-gray-500 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+          <span>
+            {legacyEmpty.length} unused legacy variant slot{legacyEmpty.length === 1 ? '' : 's'} ({legacyEmpty.map((v) => v.slug).join(', ')}) — carried over from the old 4-slot model.
+          </span>
+          <button
+            onClick={handleCleanupLegacy}
+            className="text-xs text-amber-700 hover:text-amber-900 font-medium cursor-pointer whitespace-nowrap ml-3"
+          >
+            Clean up
+          </button>
+        </div>
+      )}
+
+      {previewVariant && (
+        <ResumePreviewModal slug={previewVariant.slug} label={previewVariant.label} onClose={() => setPreviewSlug(null)} />
+      )}
+    </div>
+  );
+}
+
+function ResumePreviewModal({ slug, label, onClose }) {
+  const [text, setText] = useState(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    let cancelled = false;
+    api.get(`/resumes/${slug}/text`)
+      .then((d) => { if (!cancelled) setText(d?.parsed_text || ''); })
+      .catch(() => { if (!cancelled) setText(''); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [slug]);
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4"
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div className="bg-white rounded-xl max-w-3xl w-full max-h-[85vh] overflow-hidden flex flex-col">
+        <div className="flex items-start justify-between px-6 py-4 border-b border-gray-100">
+          <div>
+            <h2 className="text-lg font-semibold text-[#1F2D3D]">{label}</h2>
+            <p className="text-xs text-gray-500 mt-0.5 font-mono">{slug}</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-2xl leading-none cursor-pointer">×</button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-6">
+          {loading ? (
+            <div className="text-center text-gray-400 py-10">Loading...</div>
+          ) : text ? (
+            <pre className="text-sm text-gray-800 whitespace-pre-wrap font-sans bg-gray-50 rounded-lg p-4">{text}</pre>
+          ) : (
+            <div className="text-center text-gray-400 py-10">No text available.</div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

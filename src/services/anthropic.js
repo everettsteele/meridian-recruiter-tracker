@@ -183,16 +183,21 @@ const RESUME_ANGLE_PROMPTS = {
   innovator: `You're rewriting the resume to position the candidate as an AI-native operator / technology-forward executive — applying emerging tools to transform operations, automation, AI-first workflows. Emphasize technical leverage, AI/automation projects, and technology-driven productivity gains.`,
 };
 
-async function generateResumeVariant({ baseText, angle, targetRole }) {
+async function generateResumeVariant({ baseText, angle, angleName, targetRole }) {
   const client = getClient();
-  const angleInstr = RESUME_ANGLE_PROMPTS[angle] || RESUME_ANGLE_PROMPTS.operator;
+  // New API: angleName is the free-form positioning label (e.g. "Chief of Staff").
+  // Legacy API: angle is one of operator/partner/builder/innovator.
+  const angleInstr = angleName
+    ? `You're rewriting the resume to position the candidate specifically for "${angleName}" roles. Reshape the summary, reorder bullets under each job, and sharpen emphasis so the candidate reads as a strong "${angleName}" fit. Do not invent experience — use only what's present in the base resume, but lead with the parts most relevant to this positioning.`
+    : (RESUME_ANGLE_PROMPTS[angle] || RESUME_ANGLE_PROMPTS.operator);
+  const positioningLabel = angleName || angle || 'operations leadership';
 
   const prompt = `You are rewriting a candidate's resume for a specific positioning angle. Output ONLY the rewritten resume text — no preamble, no explanation, no markdown formatting.
 
-POSITIONING ANGLE: ${angle}
+POSITIONING ANGLE: ${positioningLabel}
 ${angleInstr}
 
-TARGET ROLE: ${targetRole || 'senior operations leadership'}
+TARGET ROLE: ${targetRole || positioningLabel}
 
 BASE RESUME (preserve factual content — same jobs, same dates, same companies, same metrics — but rewrite the framing, reorder bullets to emphasize the angle, sharpen action verbs, and tighten language):
 
