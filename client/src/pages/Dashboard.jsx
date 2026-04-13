@@ -51,14 +51,6 @@ export default function DashboardPage() {
   const interviewApps = appList.filter((a) => a.status === 'interviewing').length;
   const offerApps = appList.filter((a) => a.status === 'offer').length;
 
-  const upcomingEvents = eventList.filter((e) => new Date(e.date) >= new Date()).length;
-  const pastEvents = eventList.filter((e) => new Date(e.date) < new Date()).length;
-  const totalContacts = eventList.reduce((sum, e) => sum + (e.contacts?.length || 0), 0);
-  const pendingSteps = eventList.reduce(
-    (sum, e) => sum + (e.next_steps?.filter((s) => !s.done)?.length || 0),
-    0
-  );
-
   // Daily chart data — fill in missing days
   const todayDate = new Date();
   const chartDays = [];
@@ -118,16 +110,7 @@ export default function DashboardPage() {
         />
 
         {/* Networking */}
-        <KPICard
-          title="Networking"
-          color="#10B981"
-          items={[
-            { label: 'Upcoming', value: upcomingEvents },
-            { label: 'Completed', value: pastEvents },
-            { label: 'Contacts', value: totalContacts },
-            { label: 'Pending Steps', value: pendingSteps },
-          ]}
-        />
+        <NetworkingCard events={eventList} />
       </div>
 
       {/* Daily Activity Chart */}
@@ -245,6 +228,101 @@ function MetricBar({ metric }) {
       </div>
       <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
         <div className={`h-full rounded-full ${color} transition-all`} style={{ width: `${Math.min(100, pct)}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function NetworkingCard({ events = [] }) {
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+  const upcoming = events
+    .filter((e) => e.start_date && e.start_date >= todayStr && !e.hidden)
+    .sort((a, b) => {
+      const ka = (a.start_date || '') + 'T' + (a.start_time || '23:59');
+      const kb = (b.start_date || '') + 'T' + (b.start_time || '23:59');
+      return ka.localeCompare(kb);
+    });
+
+  const nextUp = upcoming.slice(0, 3);
+  const totalUpcoming = upcoming.length;
+  const pendingSteps = events.reduce(
+    (sum, e) => sum + (Array.isArray(e.next_steps) ? e.next_steps.filter((s) => !s.done).length : 0),
+    0
+  );
+  const totalContacts = events.reduce(
+    (sum, e) => sum + (Array.isArray(e.contacts) ? e.contacts.length : 0),
+    0
+  );
+
+  const fmtDate = (ymd) => {
+    if (!ymd) return '';
+    const d = new Date(ymd + 'T12:00:00');
+    if (ymd === todayStr) return 'Today';
+    const t = new Date(now);
+    t.setDate(t.getDate() + 1);
+    const tomorrowStr = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+    if (ymd === tomorrowStr) return 'Tomorrow';
+    return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  };
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: '#10B981' }} />
+          <h3 className="text-sm font-semibold text-[#1F2D3D]">Networking</h3>
+        </div>
+        <a href="/events" className="text-xs text-gray-400 hover:text-[#10B981] transition-colors">
+          All events →
+        </a>
+      </div>
+
+      {nextUp.length > 0 ? (
+        <ul className="space-y-2 flex-1 mb-3">
+          {nextUp.map((e) => {
+            const contactCount = Array.isArray(e.contacts) ? e.contacts.length : 0;
+            const openSteps = Array.isArray(e.next_steps) ? e.next_steps.filter((s) => !s.done).length : 0;
+            return (
+              <li key={e.id} className="text-xs border-l-2 border-[#10B981]/30 pl-2.5 py-0.5">
+                <div className="font-medium text-[#1F2D3D] truncate" title={e.title}>
+                  {e.title || '(untitled event)'}
+                </div>
+                <div className="text-gray-500 flex items-center gap-1.5 flex-wrap">
+                  <span>{fmtDate(e.start_date)}</span>
+                  {e.start_time && <span>· {e.start_time}</span>}
+                  {e.location && (
+                    <span className="truncate max-w-[120px]" title={e.location}>· {e.location}</span>
+                  )}
+                  {contactCount > 0 && <span className="text-gray-400">· {contactCount} 👥</span>}
+                  {openSteps > 0 && <span className="text-amber-600">· {openSteps} ↻</span>}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <div className="flex-1 flex items-center justify-center py-4">
+          <div className="text-center">
+            <p className="text-xs text-gray-400">No upcoming events</p>
+            <a href="/settings" className="text-[10px] text-[#10B981] hover:underline">
+              Connect Google Calendar
+            </a>
+          </div>
+        </div>
+      )}
+
+      <div className="flex gap-4 text-[11px] text-gray-500 pt-3 border-t border-gray-100">
+        <span>
+          <span className="font-bold text-[#1F2D3D] text-sm">{totalUpcoming}</span> upcoming
+        </span>
+        <span>
+          <span className="font-bold text-[#1F2D3D] text-sm">{pendingSteps}</span> open steps
+        </span>
+        <span>
+          <span className="font-bold text-[#1F2D3D] text-sm">{totalContacts}</span> contacts
+        </span>
       </div>
     </div>
   );
