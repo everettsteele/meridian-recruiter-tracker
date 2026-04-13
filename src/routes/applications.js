@@ -34,6 +34,25 @@ function sendSSE(userId, event, data) {
   if (client) client.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
 }
 
+// If an application has both a cover letter and a resume variant attached,
+// and it's still in 'identified', auto-advance to 'ready_to_apply'. Returns
+// a patch object (may be empty). Appends a row to the activity timeline when
+// it fires. Call this AFTER persisting the caller's own updates — pass the
+// already-updated record.
+function maybeAutoAdvance(app) {
+  if (!app) return {};
+  if (app.status !== 'identified') return {};
+  if (!app.cover_letter_text || !app.resume_variant) return {};
+  const today = todayET();
+  const activity = Array.isArray(app.activity) ? [...app.activity] : [];
+  activity.push({ date: today, type: 'auto_ready', note: 'Cover letter and resume attached' });
+  return {
+    status: 'ready_to_apply',
+    last_activity: today,
+    activity,
+  };
+}
+
 // Fire-and-forget: auto-select a resume variant for a newly created app.
 // Fast path — skips JD fetch if no source_url and lets selectResumeVariant
 // work off role + notes. Keeps new apps from sitting with a blank Resume column.
@@ -108,7 +127,11 @@ router.patch('/applications/:id', requireAuth, validate(schemas.applicationPatch
   }
   delete updates.activity_note;
 
-  const updated = await db.updateApplication(req.user.tenantId, req.params.id, updates);
+  let updated = await db.updateApplication(req.user.tenantId, req.params.id, updates);
+  const advance = maybeAutoAdvance(updated);
+  if (Object.keys(advance).length) {
+    updated = await db.updateApplication(req.user.tenantId, req.params.id, advance);
+  }
   res.json(updated);
 });
 
@@ -275,7 +298,11 @@ router.post('/applications/:id/generate-letter', requireAuth, checkAiLimit('cove
       }
     }
 
-    const updated = await db.updateApplication(req.user.tenantId, app.id, patch);
+    let updated = await db.updateApplication(req.user.tenantId, app.id, patch);
+    const advance = maybeAutoAdvance(updated);
+    if (Object.keys(advance).length) {
+      updated = await db.updateApplication(req.user.tenantId, app.id, advance);
+    }
     await db.logUsage(req.user.tenantId, req.user.id, 'cover_letters', 700, { company: app.company, single: true });
 
     res.json({ ok: true, application: updated });
@@ -332,6 +359,11 @@ router.post('/applications/batch-generate-letters', requireAuth, expensiveLimite
           } catch (e) { diagLog('BATCH-LETTERS auto-select failed: ' + e.message); }
         }
         await db.updateApplication(tenantId, appRec.id, patch);
+        const after = await db.getApplication(tenantId, appRec.id);
+        const advance = maybeAutoAdvance(after);
+        if (Object.keys(advance).length) {
+          await db.updateApplication(tenantId, appRec.id, advance);
+        }
         await db.logUsage(tenantId, userId, 'cover_letter', 700, { company: appRec.company });
         built++;
         await new Promise(r => setTimeout(r, 1500));
