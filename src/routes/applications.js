@@ -5,7 +5,10 @@ const { expensiveLimiter } = require('../middleware/security');
 const { checkAiLimit, logAiUsage } = require('../middleware/tier');
 const db = require('../db/store');
 const { todayET, diagLog } = require('../utils');
-const { generateCoverLetter, selectResumeVariant, fetchJobDescription, cleanCoverLetterText } = require('../services/anthropic');
+const {
+  generateCoverLetter, selectResumeVariant, fetchJobDescription,
+  cleanCoverLetterText, extractJobPostingMeta,
+} = require('../services/anthropic');
 const { getResumeVariants } = require('../db/users');
 
 const router = Router();
@@ -268,6 +271,18 @@ router.patch('/applications/:id/snooze', requireAuth, validate(schemas.snoozeReq
   });
   const updated = await db.snoozeApplication(req.user.tenantId, req.params.id, req.body.until);
   res.json(updated);
+});
+
+router.post('/applications/parse-url', requireAuth, validate(schemas.parseUrlRequest), async (req, res) => {
+  const { url } = req.body;
+  let jdText = '';
+  try { jdText = await fetchJobDescription(url); } catch (_) {}
+  const meta = await extractJobPostingMeta(jdText, url);
+  // Fallbacks if the model returned nothing.
+  if (!meta.company) {
+    try { meta.company = new URL(url).hostname.replace(/^www\./, ''); } catch (_) {}
+  }
+  res.json({ ok: true, company: meta.company, role: meta.role, location: meta.location, source_url: url });
 });
 
 // Email sync — match emails to applications

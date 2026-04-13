@@ -222,6 +222,43 @@ Begin the rewritten resume now.`;
   return (resp.content?.[0]?.text || '').trim();
 }
 
+// ================================================================
+// extractJobPostingMeta — pull {company, role, location} from a page
+// ================================================================
+
+async function extractJobPostingMeta(jdText, sourceUrl) {
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return { company: '', role: '', location: '' };
+  }
+  const client = getClient();
+  const prompt = `Extract the job posting's company, role title, and location from the text below. Respond with ONLY a JSON object like {"company":"Acme Corp","role":"Chief of Staff","location":"Remote"}. If a field is unknown use an empty string. No explanation.
+
+URL: ${sourceUrl || '(unknown)'}
+
+PAGE TEXT:
+${(jdText || '').slice(0, 3500)}`;
+
+  try {
+    const resp = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 200,
+      messages: [{ role: 'user', content: prompt }],
+    });
+    const raw = (resp.content?.[0]?.text || '').trim();
+    // Trim code-fence noise if the model wraps it.
+    const jsonStr = raw.replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
+    const parsed = JSON.parse(jsonStr);
+    return {
+      company: String(parsed.company || '').slice(0, 200),
+      role: String(parsed.role || '').slice(0, 200),
+      location: String(parsed.location || '').slice(0, 200),
+    };
+  } catch (e) {
+    console.error('[extractJobPostingMeta]', e.message);
+    return { company: '', role: '', location: '' };
+  }
+}
+
 async function fetchJobDescription(url) {
   try {
     const resp = await fetch(url, {
@@ -248,4 +285,5 @@ module.exports = {
   generateEmailDraft,
   generateResumeVariant,
   fetchJobDescription,
+  extractJobPostingMeta,
 };
