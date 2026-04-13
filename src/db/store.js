@@ -442,6 +442,14 @@ async function listApplicationContacts(tenantId, applicationId) {
   return rows;
 }
 
+async function getApplicationContact(tenantId, contactId) {
+  const { rows } = await query(
+    `SELECT * FROM application_contacts WHERE tenant_id = $1 AND id = $2`,
+    [tenantId, contactId]
+  );
+  return rows[0] || null;
+}
+
 async function createApplicationContact(tenantId, applicationId, data) {
   const { rows } = await query(
     `INSERT INTO application_contacts
@@ -536,7 +544,7 @@ module.exports = {
   // Application — Snooze + JD Cache
   snoozeApplication, setJdText,
   // Application — Contacts
-  listApplicationContacts, createApplicationContact, updateApplicationContact, deleteApplicationContact,
+  listApplicationContacts, getApplicationContact, createApplicationContact, updateApplicationContact, deleteApplicationContact,
   // Application — Chat
   listChatMessages, appendChatMessage, clearChatMessages, countChatTurns,
   // Job Board

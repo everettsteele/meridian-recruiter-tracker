@@ -27,7 +27,8 @@ export default function InterviewChat({ app }) {
 
   const sendMut = useMutation({
     mutationFn: (message) => api.post(`/applications/${app.id}/chat`, { message }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['app-chat', app.id] }); setDraft(''); },
+    onSuccess: () => setDraft(''),
+    onSettled: () => { qc.invalidateQueries({ queryKey: ['app-chat', app.id] }); },
   });
 
   const clearMut = useMutation({

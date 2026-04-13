@@ -23,6 +23,10 @@ router.post('/applications/:id/contacts', requireAuth, validate(schemas.applicat
 
 // PATCH /applications/contacts/:contactId
 router.patch('/applications/contacts/:contactId', requireAuth, validate(schemas.applicationContactPatch), async (req, res) => {
+  const contact = await db.getApplicationContact(req.user.tenantId, req.params.contactId);
+  if (!contact) return res.status(404).json({ error: 'Not found' });
+  const app = await db.getApplication(req.user.tenantId, contact.application_id);
+  if (!app || app.user_id !== req.user.id) return res.status(404).json({ error: 'Not found' });
   const updated = await db.updateApplicationContact(req.user.tenantId, req.params.contactId, req.body);
   if (!updated) return res.status(404).json({ error: 'Not found' });
   res.json(updated);
@@ -30,6 +34,10 @@ router.patch('/applications/contacts/:contactId', requireAuth, validate(schemas.
 
 // DELETE /applications/contacts/:contactId
 router.delete('/applications/contacts/:contactId', requireAuth, async (req, res) => {
+  const contact = await db.getApplicationContact(req.user.tenantId, req.params.contactId);
+  if (!contact) return res.status(404).json({ error: 'Not found' });
+  const app = await db.getApplication(req.user.tenantId, contact.application_id);
+  if (!app || app.user_id !== req.user.id) return res.status(404).json({ error: 'Not found' });
   const ok = await db.deleteApplicationContact(req.user.tenantId, req.params.contactId);
   if (!ok) return res.status(404).json({ error: 'Not found' });
   res.json({ ok: true });

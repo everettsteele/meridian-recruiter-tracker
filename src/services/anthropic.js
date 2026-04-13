@@ -226,12 +226,76 @@ Begin the rewritten resume now.`;
 // extractJobPostingMeta — pull {company, role, location} from a page
 // ================================================================
 
+function humanizeSlug(slug) {
+  if (!slug) return '';
+  // Strip common corporate suffixes so "machinifyinc" → "machinify"
+  const clean = String(slug).replace(/(inc|llc|corp|co)$/i, '').trim();
+  const base = clean || String(slug);
+  return base
+    .split(/[-_]/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ')
+    .trim();
+}
+
+// Extract a company name from common ATS URL patterns. Returns '' if unknown.
+function extractCompanyFromUrl(url) {
+  try {
+    const u = new URL(url);
+    const host = u.hostname.toLowerCase();
+    const path = u.pathname.split('/').filter(Boolean);
+
+    // Greenhouse: boards.greenhouse.io/{slug}/jobs/...
+    //             job-boards.greenhouse.io/{slug}/jobs/...
+    if (host === 'boards.greenhouse.io' || host === 'job-boards.greenhouse.io') {
+      if (path[0] && path[0] !== 'jobs') return humanizeSlug(path[0]);
+    }
+    // Lever: jobs.lever.co/{slug}/...
+    if (host === 'jobs.lever.co' && path[0]) return humanizeSlug(path[0]);
+    // Workable: apply.workable.com/{slug}/...
+    if (host === 'apply.workable.com' && path[0]) return humanizeSlug(path[0]);
+    // Ashby: jobs.ashbyhq.com/{slug}/...
+    if (host === 'jobs.ashbyhq.com' && path[0]) return humanizeSlug(path[0]);
+    // Rippling ATS: ats.rippling.com/{slug}/...
+    if (host === 'ats.rippling.com' && path[0]) return humanizeSlug(path[0]);
+    // Workday: {company}.wdNN.myworkdayjobs.com/...
+    const wd = host.match(/^([^.]+)\..*myworkdayjobs\.com$/);
+    if (wd) return humanizeSlug(wd[1]);
+    // SmartRecruiters: jobs.smartrecruiters.com/{slug}/...
+    if (host === 'jobs.smartrecruiters.com' && path[0]) return humanizeSlug(path[0]);
+    // BambooHR: {slug}.bamboohr.com/...
+    const bamboo = host.match(/^([^.]+)\.bamboohr\.com$/);
+    if (bamboo) return humanizeSlug(bamboo[1]);
+    // JazzHR: {slug}.applytojob.com/...
+    const jazz = host.match(/^([^.]+)\.applytojob\.com$/);
+    if (jazz) return humanizeSlug(jazz[1]);
+    // Generic careers.{company}.com / jobs.{company}.com
+    if ((host.startsWith('careers.') || host.startsWith('jobs.')) && host.split('.').length >= 3) {
+      const parts = host.split('.');
+      return humanizeSlug(parts[1]);
+    }
+    return '';
+  } catch (_) { return ''; }
+}
+
 async function extractJobPostingMeta(jdText, sourceUrl) {
+  const urlCompany = extractCompanyFromUrl(sourceUrl || '');
+
   if (!process.env.ANTHROPIC_API_KEY) {
-    return { company: '', role: '', location: '' };
+    return { company: urlCompany, role: '', location: '' };
   }
   const client = getClient();
-  const prompt = `Extract the job posting's company, role title, and location from the text below. Respond with ONLY a JSON object like {"company":"Acme Corp","role":"Chief of Staff","location":"Remote"}. If a field is unknown use an empty string. No explanation.
+  const prompt = `Extract the employer company, the role title, and the location from this job posting.
+
+IMPORTANT — company and role are DIFFERENT fields:
+- "company" is the EMPLOYER (e.g. "Machinify", "Stripe", "Acme Corp")
+- "role" is the POSITION TITLE (e.g. "Chief of Staff", "VP Engineering", "Software Engineer")
+Never put the same value in both.
+
+${urlCompany ? `HINT from URL: the company appears to be "${urlCompany}". Use this unless the page text clearly contradicts it.` : ''}
+
+Respond with ONLY a JSON object like {"company":"Acme Corp","role":"Chief of Staff","location":"Remote"}. If a field is unknown use an empty string. No explanation.
 
 URL: ${sourceUrl || '(unknown)'}
 
@@ -245,17 +309,20 @@ ${(jdText || '').slice(0, 3500)}`;
       messages: [{ role: 'user', content: prompt }],
     });
     const raw = (resp.content?.[0]?.text || '').trim();
-    // Trim code-fence noise if the model wraps it.
     const jsonStr = raw.replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
     const parsed = JSON.parse(jsonStr);
-    return {
-      company: String(parsed.company || '').slice(0, 200),
-      role: String(parsed.role || '').slice(0, 200),
-      location: String(parsed.location || '').slice(0, 200),
-    };
+    let company = String(parsed.company || '').slice(0, 200);
+    const role = String(parsed.role || '').slice(0, 200);
+    const location = String(parsed.location || '').slice(0, 200);
+    // If the model returned the role as the company, or nothing for company,
+    // prefer the URL-derived company.
+    if (urlCompany && (!company || company.toLowerCase() === role.toLowerCase())) {
+      company = urlCompany;
+    }
+    return { company, role, location };
   } catch (e) {
     console.error('[extractJobPostingMeta]', e.message);
-    return { company: '', role: '', location: '' };
+    return { company: urlCompany, role: '', location: '' };
   }
 }
 
@@ -338,4 +405,5 @@ module.exports = {
   generateResumeVariant,
   fetchJobDescription,
   extractJobPostingMeta,
+  extractCompanyFromUrl,
 };
