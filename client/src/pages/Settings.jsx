@@ -17,6 +17,7 @@ export default function SettingsPage() {
       <ApiKeySection toast={toast} />
       <BillingSection toast={toast} />
       <ResumeSection />
+      <PrivacySection profile={profile} updateProfile={updateProfile} toast={toast} />
       <JobSearchSection toast={toast} />
     </div>
   );
@@ -1014,6 +1015,48 @@ function ResumePreviewModal({ slug, label, onClose }) {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function PrivacySection({ profile, updateProfile, toast }) {
+  const [saving, setSaving] = useState(false);
+  const optIn = !(profile?.analytics_opt_out ?? profile?.analyticsOptOut ?? false);
+
+  const handleToggle = async (e) => {
+    const checked = e.target.checked;
+    setSaving(true);
+    try {
+      await updateProfile({ analytics_opt_out: !checked });
+      toast(checked ? 'Analytics opt-in on' : 'Opted out — Snag will stop logging your anonymized events');
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-6">
+      <h3 className="text-base font-semibold text-[#1F2D3D] mb-2">Privacy</h3>
+      <p className="text-xs text-gray-500 mb-4">
+        Snag logs anonymized patterns from your usage (status changes, variant selections, response rates) to power personal insights and make the product smarter for everyone. Never includes raw text from your resumes, cover letters, job descriptions, or notes.
+      </p>
+      <label className="flex items-start gap-3 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={optIn}
+          disabled={saving}
+          onChange={handleToggle}
+          className="mt-0.5 w-4 h-4 accent-[#F97316] cursor-pointer"
+        />
+        <div>
+          <div className="text-sm font-medium text-[#1F2D3D]">Help Snag get smarter</div>
+          <div className="text-xs text-gray-500 mt-0.5">
+            On by default. Uncheck to stop logging your anonymized events.
+          </div>
+        </div>
+      </label>
     </div>
   );
 }
