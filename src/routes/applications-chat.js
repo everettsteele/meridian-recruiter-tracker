@@ -125,7 +125,8 @@ router.post('/applications/:id/chat', requireAuth, expensiveLimiter,
   if (!reply) return res.status(500).json({ error: 'Empty reply from model' });
 
   const stored = await db.appendChatMessage(req.user.tenantId, app.id, 'assistant', reply, tokensIn, tokensOut, mode);
-  await logAiUsage(req.user.tenantId, req.user.id, 'interview_chat', tokensIn + tokensOut, {
+  const usageAction = mode === 'practice' ? 'practice_chat' : 'interview_chat';
+  await logAiUsage(req.user.tenantId, req.user.id, usageAction, tokensIn + tokensOut, {
     company: app.company, role: app.role, mode,
   });
 
