@@ -175,6 +175,7 @@ export default function ApplicationsPage() {
       verdictMutation.mutate(v);
       parseUrlMutation.mutate(v);
     } else {
+      verdictMutation.reset();
       setPrefill({ company: v });
       setShowModal(true);
       setQuickInput('');
