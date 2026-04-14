@@ -22,6 +22,7 @@ const applicationContactsRoutes = require('./src/routes/applications-contacts');
 const applicationChatRoutes = require('./src/routes/applications-chat');
 const dossierRoutes = require('./src/routes/dossier');
 const verdictRoutes = require('./src/routes/verdict');
+const prepBriefRoutes = require('./src/routes/prepBrief');
 
 // Middleware
 const { helmetMiddleware, corsMiddleware, globalLimiter } = require('./src/middleware/security');
@@ -51,6 +52,7 @@ app.use('/api', applicationContactsRoutes);
 app.use('/api', applicationChatRoutes);
 app.use('/api', dossierRoutes);
 app.use('/api', verdictRoutes);
+app.use('/api', prepBriefRoutes);
 app.use('/api', jobboardRoutes);
 app.use('/api/networking', networkingRoutes);
 app.use('/api', diagnosticsRoutes);
