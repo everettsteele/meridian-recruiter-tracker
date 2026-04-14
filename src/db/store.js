@@ -558,6 +558,50 @@ async function isAnalyticsOptOut(userId) {
   return !!rows[0]?.analytics_opt_out;
 }
 
+// ================================================================
+// COMPANY DOSSIERS (shared, tenant-independent)
+// ================================================================
+
+async function getCompanyDossier(companyKey) {
+  const { rows } = await query(
+    `SELECT * FROM company_dossiers WHERE company_key = $1`,
+    [companyKey]
+  );
+  return rows[0] || null;
+}
+
+async function upsertCompanyDossier(data) {
+  const { rows } = await query(
+    `INSERT INTO company_dossiers
+       (company_key, display_name, source_domain, summary, facts, links,
+        generated_by_user_id, tokens_in, tokens_out, updated_at)
+     VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7, $8, $9, NOW())
+     ON CONFLICT (company_key) DO UPDATE
+       SET display_name = EXCLUDED.display_name,
+           source_domain = EXCLUDED.source_domain,
+           summary = EXCLUDED.summary,
+           facts = EXCLUDED.facts,
+           links = EXCLUDED.links,
+           generated_by_user_id = EXCLUDED.generated_by_user_id,
+           tokens_in = EXCLUDED.tokens_in,
+           tokens_out = EXCLUDED.tokens_out,
+           updated_at = NOW()
+     RETURNING *`,
+    [
+      data.company_key,
+      data.display_name,
+      data.source_domain || null,
+      data.summary || null,
+      JSON.stringify(data.facts || []),
+      JSON.stringify(data.links || {}),
+      data.generated_by_user_id || null,
+      data.tokens_in || 0,
+      data.tokens_out || 0,
+    ]
+  );
+  return rows[0];
+}
+
 module.exports = {
   // Applications
   listApplications, getApplication, createApplication, updateApplication, deleteApplication,
@@ -583,4 +627,7 @@ module.exports = {
   // Product Events (analytics)
   createProductEvent,
   isAnalyticsOptOut,
+  // Company Dossiers
+  getCompanyDossier,
+  upsertCompanyDossier,
 };
