@@ -479,7 +479,9 @@ function VerdictCard({ verdict, loading, error }) {
       <div className="flex items-center gap-2 mb-1.5">
         <span className={`inline-block w-2 h-6 rounded-sm ${style.bar}`} />
         <span className="text-sm font-semibold">{style.label}</span>
-        <span className="text-xs opacity-70 ml-auto">{verdict.score}/100</span>
+        <span className="text-xs opacity-70 ml-auto">
+          {typeof verdict.score === 'number' ? `${verdict.score}/100` : '—'}
+        </span>
       </div>
       {verdict.reasoning && (
         <p className="text-xs leading-relaxed mb-2">{verdict.reasoning}</p>
