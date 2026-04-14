@@ -4,6 +4,7 @@ const { query } = require('../db/pool');
 const LIMITS = {
   cover_letters_per_week: 3,
   resumes: 1,
+  dossier_generation_per_week: 3,
 };
 
 // Accounts that always have pro (regardless of DB plan).
