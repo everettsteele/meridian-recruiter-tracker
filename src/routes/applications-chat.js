@@ -34,9 +34,10 @@ router.get('/applications/:id/chat', requireAuth, async (req, res) => {
   const app = await db.getApplication(req.user.tenantId, req.params.id);
   if (!app || app.user_id !== req.user.id) return res.status(404).json({ error: 'Not found' });
 
-  const messages = await db.listChatMessages(req.user.tenantId, req.params.id);
+  const mode = req.query.mode === 'practice' ? 'practice' : 'coach';
+  const messages = await db.listChatMessages(req.user.tenantId, req.params.id, mode);
   const turnCount = messages.filter((m) => m.role === 'user').length;
-  res.json({ messages, turn_count: turnCount, cap: CHAT_TURN_CAP });
+  res.json({ messages, mode, turn_count: turnCount, cap: CHAT_TURN_CAP });
 });
 
 // POST /applications/:id/chat → send a message, get a reply
@@ -55,9 +56,10 @@ router.post('/applications/:id/chat', requireAuth, expensiveLimiter,
     return res.status(400).json({ error: 'Interview prep unlocks at Interviewing status' });
   }
 
-  const turnCount = await db.countChatTurns(req.user.tenantId, req.params.id);
+  const mode = req.body.mode === 'practice' ? 'practice' : 'coach';
+  const turnCount = await db.countChatTurns(req.user.tenantId, req.params.id, mode);
   if (turnCount >= CHAT_TURN_CAP) {
-    return res.status(429).json({ error: 'Chat history full — clear to continue', cap: CHAT_TURN_CAP });
+    return res.status(429).json({ error: 'Chat history full — clear to continue', cap: CHAT_TURN_CAP, mode });
   }
 
   // Ensure JD text is cached.
@@ -90,12 +92,13 @@ router.post('/applications/:id/chat', requireAuth, expensiveLimiter,
     contacts,
     notes: app.notes || '',
     activity: Array.isArray(app.activity) ? app.activity : [],
+    mode,
   });
 
   // Persist the user message first so it's retained even if the model call fails.
-  await db.appendChatMessage(req.user.tenantId, app.id, 'user', req.body.message, 0, 0);
+  await db.appendChatMessage(req.user.tenantId, app.id, 'user', req.body.message, 0, 0, mode);
 
-  const history = await db.listChatMessages(req.user.tenantId, app.id);
+  const history = await db.listChatMessages(req.user.tenantId, app.id, mode);
   const messages = history.map((m) => ({ role: m.role, content: m.content }));
 
   let reply = '';
@@ -121,14 +124,15 @@ router.post('/applications/:id/chat', requireAuth, expensiveLimiter,
 
   if (!reply) return res.status(500).json({ error: 'Empty reply from model' });
 
-  const stored = await db.appendChatMessage(req.user.tenantId, app.id, 'assistant', reply, tokensIn, tokensOut);
+  const stored = await db.appendChatMessage(req.user.tenantId, app.id, 'assistant', reply, tokensIn, tokensOut, mode);
   await logAiUsage(req.user.tenantId, req.user.id, 'interview_chat', tokensIn + tokensOut, {
-    company: app.company, role: app.role,
+    company: app.company, role: app.role, mode,
   });
 
-  const newTurnCount = await db.countChatTurns(req.user.tenantId, app.id);
+  const newTurnCount = await db.countChatTurns(req.user.tenantId, app.id, mode);
 
-  logEvent(req.user.tenantId, req.user.id, 'interview_chat.turn', {
+  const eventType = mode === 'practice' ? 'practice_chat.turn' : 'interview_chat.turn';
+  logEvent(req.user.tenantId, req.user.id, eventType, {
     entityType: 'application',
     entityId: app.id,
     payload: {
@@ -142,6 +146,7 @@ router.post('/applications/:id/chat', requireAuth, expensiveLimiter,
   res.json({
     id: stored.id,
     reply,
+    mode,
     tokens_in: tokensIn,
     tokens_out: tokensOut,
     turn_count: newTurnCount,

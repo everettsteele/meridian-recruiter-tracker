@@ -500,24 +500,27 @@ async function deleteApplicationContact(tenantId, contactId) {
 // APPLICATION — CHAT
 // ================================================================
 
-async function listChatMessages(tenantId, applicationId) {
+async function listChatMessages(tenantId, applicationId, mode) {
+  const params = [tenantId, applicationId];
+  let modeClause = '';
+  if (mode) { modeClause = 'AND mode = $3'; params.push(mode); }
   const { rows } = await query(
-    `SELECT id, role, content, tokens_in, tokens_out, created_at
+    `SELECT id, role, content, mode, tokens_in, tokens_out, created_at
        FROM application_chats
-      WHERE tenant_id = $1 AND application_id = $2
+      WHERE tenant_id = $1 AND application_id = $2 ${modeClause}
       ORDER BY created_at ASC`,
-    [tenantId, applicationId]
+    params
   );
   return rows;
 }
 
-async function appendChatMessage(tenantId, applicationId, role, content, tokensIn, tokensOut) {
+async function appendChatMessage(tenantId, applicationId, role, content, tokensIn, tokensOut, mode) {
   const { rows } = await query(
     `INSERT INTO application_chats
-       (tenant_id, application_id, role, content, tokens_in, tokens_out)
-     VALUES ($1, $2, $3, $4, $5, $6)
+       (tenant_id, application_id, role, content, tokens_in, tokens_out, mode)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
      RETURNING *`,
-    [tenantId, applicationId, role, content, tokensIn || 0, tokensOut || 0]
+    [tenantId, applicationId, role, content, tokensIn || 0, tokensOut || 0, mode || 'coach']
   );
   return rows[0];
 }
@@ -529,11 +532,14 @@ async function clearChatMessages(tenantId, applicationId) {
   );
 }
 
-async function countChatTurns(tenantId, applicationId) {
+async function countChatTurns(tenantId, applicationId, mode) {
+  const params = [tenantId, applicationId];
+  let modeClause = '';
+  if (mode) { modeClause = 'AND mode = $3'; params.push(mode); }
   const { rows } = await query(
     `SELECT COUNT(*)::int AS n FROM application_chats
-      WHERE tenant_id = $1 AND application_id = $2 AND role = 'user'`,
-    [tenantId, applicationId]
+      WHERE tenant_id = $1 AND application_id = $2 AND role = 'user' ${modeClause}`,
+    params
   );
   return rows[0]?.n || 0;
 }
