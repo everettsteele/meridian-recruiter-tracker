@@ -124,8 +124,19 @@ const applicationContactCreate = z.object({
 
 const applicationContactPatch = applicationContactCreate.partial();
 
+const VALID_CHAT_MODES = ['coach', 'practice'];
+
 const chatMessageRequest = z.object({
   message: z.string().min(1).max(4000),
+  mode: z.enum(VALID_CHAT_MODES).optional().default('coach'),
+});
+
+const debriefCreateRequest = z.object({
+  transcript: z.string().min(500).max(20000),
+});
+
+const prepBriefBuildRequest = z.object({
+  refresh: z.boolean().optional(),
 });
 
 module.exports = {
@@ -145,10 +156,13 @@ module.exports = {
     applicationContactCreate,
     applicationContactPatch,
     chatMessageRequest,
+    debriefCreateRequest,
+    prepBriefBuildRequest,
   },
   VALID_APP_STATUSES,
   VALID_CLOSED_REASONS,
   VALID_CONTACT_KINDS,
   VALID_OUTREACH_STATUSES,
   VALID_LEAD_STATUSES,
+  VALID_CHAT_MODES,
 };
