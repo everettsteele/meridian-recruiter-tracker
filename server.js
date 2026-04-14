@@ -20,6 +20,7 @@ const snagMetricsRoutes = require('./src/routes/snag-metrics');
 const signatureRoutes = require('./src/routes/signature');
 const applicationContactsRoutes = require('./src/routes/applications-contacts');
 const applicationChatRoutes = require('./src/routes/applications-chat');
+const dossierRoutes = require('./src/routes/dossier');
 
 // Middleware
 const { helmetMiddleware, corsMiddleware, globalLimiter } = require('./src/middleware/security');
@@ -47,6 +48,7 @@ app.use('/api', firmsRoutes);
 app.use('/api', applicationRoutes);
 app.use('/api', applicationContactsRoutes);
 app.use('/api', applicationChatRoutes);
+app.use('/api', dossierRoutes);
 app.use('/api', jobboardRoutes);
 app.use('/api/networking', networkingRoutes);
 app.use('/api', diagnosticsRoutes);
