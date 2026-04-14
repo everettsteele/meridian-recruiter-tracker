@@ -69,12 +69,15 @@ ${jdText.slice(0, 8000)}`;
 
   const resp = await client.messages.create({
     model: 'claude-sonnet-4-6',
-    max_tokens: 800,
+    max_tokens: 1200,
     messages: [{ role: 'user', content: prompt }],
   });
 
   const raw = (resp.content?.[0]?.text || '').trim();
-  const jsonStr = raw.replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
+  // Extract the first balanced-looking {...} block. Robust to preambles,
+  // code fences, or trailing explanations.
+  const match = raw.match(/\{[\s\S]*\}/);
+  const jsonStr = (match ? match[0] : raw).trim();
   let parsed;
   try { parsed = JSON.parse(jsonStr); } catch (e) {
     diagLog('dossier parse failed: ' + e.message);
