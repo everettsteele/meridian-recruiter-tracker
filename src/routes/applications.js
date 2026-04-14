@@ -10,6 +10,7 @@ const {
   cleanCoverLetterText, extractJobPostingMeta,
 } = require('../services/anthropic');
 const { getResumeVariants } = require('../db/users');
+const { logEvent, lengthBucket, urlHost, hashSlug } = require('../services/events');
 
 const router = Router();
 
@@ -82,6 +83,11 @@ function autoSelectResumeInBackground(tenantId, userId, app, userCtx) {
       if (!fresh || fresh.resume_variant) return;
       await db.updateApplication(tenantId, app.id, { resume_variant: variant });
       await db.logUsage(tenantId, userId, 'variant_select', 20, { company: app.company, variant, autocreate: true });
+      logEvent(tenantId, userId, 'resume_variant.selected', {
+        entityType: 'application',
+        entityId: app.id,
+        payload: { slug_hash: hashSlug(userId, variant), auto: true },
+      });
       diagLog(`AUTO-SELECT resume=${variant} for app=${app.id} company=${app.company}`);
     } catch (e) {
       diagLog('AUTO-SELECT failed: ' + e.message);
@@ -112,6 +118,15 @@ router.post('/applications', requireAuth, validate(schemas.applicationCreate), a
     activity: [{ date: today, type: status || 'identified', note: 'Added' }],
   });
   autoSelectResumeInBackground(req.user.tenantId, req.user.id, app, { fullName: req.user.fullName });
+  logEvent(req.user.tenantId, req.user.id, 'application.created', {
+    entityType: 'application',
+    entityId: app.id,
+    payload: {
+      source: 'manual',
+      source_domain: urlHost(source_url),
+      has_url: !!source_url,
+    },
+  });
   res.json(app);
 });
 
@@ -127,13 +142,57 @@ router.patch('/applications/:id', requireAuth, validate(schemas.applicationPatch
     const activity = Array.isArray(app.activity) ? [...app.activity] : [];
     activity.push({ date: today, type: req.body.status, note: req.body.activity_note || '' });
     updates.activity = activity;
+    const prevStatus = app.status;
+    const prevActivityDate = Array.isArray(app.activity) && app.activity.length
+      ? app.activity[app.activity.length - 1]?.date : null;
+    const daysInPrev = prevActivityDate
+      ? Math.max(0, Math.floor((new Date(today) - new Date(prevActivityDate)) / 86400000))
+      : null;
+    logEvent(req.user.tenantId, req.user.id, 'application.status_changed', {
+      entityType: 'application',
+      entityId: app.id,
+      payload: { from: prevStatus, to: req.body.status, days_in_prev_status: daysInPrev },
+    });
+    if (req.body.status === 'closed') {
+      const daysSinceCreated = app.created_at
+        ? Math.max(0, Math.floor((new Date() - new Date(app.created_at)) / 86400000))
+        : null;
+      logEvent(req.user.tenantId, req.user.id, 'application.closed', {
+        entityType: 'application',
+        entityId: app.id,
+        payload: {
+          closed_reason: req.body.closed_reason || app.closed_reason || 'other',
+          days_since_created: daysSinceCreated,
+        },
+      });
+    }
+    if (req.body.status === 'applied') {
+      logEvent(req.user.tenantId, req.user.id, 'application.apply_clicked', {
+        entityType: 'application',
+        entityId: app.id,
+        payload: { had_cover_letter: !!app.cover_letter_text, had_drive_url: !!app.drive_url },
+      });
+    }
   }
   delete updates.activity_note;
+
+  if (req.body.resume_variant !== undefined && req.body.resume_variant !== app.resume_variant && req.body.resume_variant) {
+    logEvent(req.user.tenantId, req.user.id, 'resume_variant.selected', {
+      entityType: 'application',
+      entityId: app.id,
+      payload: { slug_hash: hashSlug(req.user.id, req.body.resume_variant), auto: false },
+    });
+  }
 
   let updated = await db.updateApplication(req.user.tenantId, req.params.id, updates);
   const advance = maybeAutoAdvance(updated);
   if (Object.keys(advance).length) {
     updated = await db.updateApplication(req.user.tenantId, req.params.id, advance);
+    logEvent(req.user.tenantId, req.user.id, 'application.auto_advanced', {
+      entityType: 'application',
+      entityId: app.id,
+      payload: { from: 'identified', to: 'ready_to_apply' },
+    });
   }
   res.json(updated);
 });
@@ -243,8 +302,24 @@ router.post(
           await db.updateApplication(tenantId, appRec.id, patch);
           const after = await db.getApplication(tenantId, appRec.id);
           const advance = maybeAutoAdvance(after);
-          if (Object.keys(advance).length) await db.updateApplication(tenantId, appRec.id, advance);
+          if (Object.keys(advance).length) {
+            await db.updateApplication(tenantId, appRec.id, advance);
+            logEvent(tenantId, userId, 'application.auto_advanced', {
+              entityType: 'application',
+              entityId: appRec.id,
+              payload: { from: 'identified', to: 'ready_to_apply' },
+            });
+          }
           await db.logUsage(tenantId, userId, 'cover_letter', 700, { company: appRec.company, bulk: true });
+          logEvent(tenantId, userId, 'cover_letter.generated', {
+            entityType: 'application',
+            entityId: appRec.id,
+            payload: {
+              word_count: letter.split(/\s+/).filter(Boolean).length,
+              mode: 'bulk',
+              jd_length_bucket: lengthBucket(jdText),
+            },
+          });
           await new Promise((r) => setTimeout(r, 1500));
         } catch (e) { diagLog('BULK letter EXCEPTION: ' + e.message); }
       }
@@ -270,6 +345,14 @@ router.patch('/applications/:id/snooze', requireAuth, validate(schemas.snoozeReq
     activity, last_activity: today,
   });
   const updated = await db.snoozeApplication(req.user.tenantId, req.params.id, req.body.until);
+  const untilDaysOut = req.body.until
+    ? Math.max(0, Math.floor((new Date(req.body.until + 'T00:00:00Z') - new Date()) / 86400000))
+    : null;
+  logEvent(req.user.tenantId, req.user.id, 'application.snoozed', {
+    entityType: 'application',
+    entityId: req.params.id,
+    payload: { until_days_out: untilDaysOut, unsnoozed: !req.body.until },
+  });
   res.json(updated);
 });
 
@@ -282,6 +365,9 @@ router.post('/applications/parse-url', requireAuth, expensiveLimiter, validate(s
   if (!meta.company) {
     try { meta.company = new URL(url).hostname.replace(/^www\./, ''); } catch (_) {}
   }
+  logEvent(req.user.tenantId, req.user.id, 'url.parsed', {
+    payload: { host: urlHost(url), has_company: !!meta.company, has_role: !!meta.role },
+  });
   res.json({ ok: true, company: meta.company, role: meta.role, location: meta.location, source_url: url });
 });
 
@@ -436,6 +522,11 @@ router.post('/applications/:id/generate-letter', requireAuth, checkAiLimit('cove
         if (variant) {
           patch.resume_variant = variant;
           await db.logUsage(req.user.tenantId, req.user.id, 'variant_select', 20, { company: app.company, variant });
+          logEvent(req.user.tenantId, req.user.id, 'resume_variant.selected', {
+            entityType: 'application',
+            entityId: app.id,
+            payload: { slug_hash: hashSlug(req.user.id, variant), auto: true },
+          });
         }
       } catch (e) {
         diagLog('generate-letter auto-select failed: ' + e.message);
@@ -446,8 +537,22 @@ router.post('/applications/:id/generate-letter', requireAuth, checkAiLimit('cove
     const advance = maybeAutoAdvance(updated);
     if (Object.keys(advance).length) {
       updated = await db.updateApplication(req.user.tenantId, app.id, advance);
+      logEvent(req.user.tenantId, req.user.id, 'application.auto_advanced', {
+        entityType: 'application',
+        entityId: app.id,
+        payload: { from: 'identified', to: 'ready_to_apply' },
+      });
     }
     await db.logUsage(req.user.tenantId, req.user.id, 'cover_letters', 700, { company: app.company, single: true });
+    logEvent(req.user.tenantId, req.user.id, 'cover_letter.generated', {
+      entityType: 'application',
+      entityId: app.id,
+      payload: {
+        word_count: coverLetter.split(/\s+/).filter(Boolean).length,
+        mode: 'single',
+        jd_length_bucket: lengthBucket(jdText),
+      },
+    });
 
     res.json({ ok: true, application: updated });
   } catch (e) {
@@ -507,8 +612,22 @@ router.post('/applications/batch-generate-letters', requireAuth, expensiveLimite
         const advance = maybeAutoAdvance(after);
         if (Object.keys(advance).length) {
           await db.updateApplication(tenantId, appRec.id, advance);
+          logEvent(tenantId, userId, 'application.auto_advanced', {
+            entityType: 'application',
+            entityId: appRec.id,
+            payload: { from: 'identified', to: 'ready_to_apply' },
+          });
         }
         await db.logUsage(tenantId, userId, 'cover_letter', 700, { company: appRec.company });
+        logEvent(tenantId, userId, 'cover_letter.generated', {
+          entityType: 'application',
+          entityId: appRec.id,
+          payload: {
+            word_count: coverLetter.split(/\s+/).filter(Boolean).length,
+            mode: 'batch',
+            jd_length_bucket: lengthBucket(jdText),
+          },
+        });
         built++;
         await new Promise(r => setTimeout(r, 1500));
       } catch (err) { diagLog('BATCH-LETTERS EXCEPTION: ' + err.message); failed++; }
