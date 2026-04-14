@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
 import InterviewChat from './InterviewChat';
+import PrepBriefCard from './PrepBriefCard';
+import DebriefList from './DebriefList';
 
 export default function ApplicationRow({
   app, variants = [], selected, onToggleSelect,
@@ -513,7 +515,15 @@ function CompanyTab({ app }) {
   );
 }
 
-function InterviewTabLazy({ app }) { return <InterviewChat app={app} />; }
+function InterviewTabLazy({ app }) {
+  return (
+    <div>
+      <PrepBriefCard app={app} />
+      <InterviewChat app={app} />
+      <DebriefList app={app} />
+    </div>
+  );
+}
 
 export const STATUS_INFO = {
   identified: { label: 'Identified', color: 'bg-gray-100 text-gray-700' },
