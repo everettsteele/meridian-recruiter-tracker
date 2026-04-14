@@ -5,6 +5,7 @@ const { crawlLimiter } = require('../middleware/security');
 const db = require('../db/store');
 const { todayET, diagLog } = require('../utils');
 const { randomUUID } = require('crypto');
+const { logEvent } = require('../services/events');
 
 const router = Router();
 
@@ -43,6 +44,20 @@ router.post('/job-board/snag', requireAuth, validate(schemas.snagRequest), async
   await db.updateJobBoardLead(req.user.tenantId, lead_id, { status: 'snagged', snagged_app_id: newApp.id });
   const { autoSelectResumeInBackground } = require('./applications');
   autoSelectResumeInBackground(req.user.tenantId, req.user.id, newApp, { fullName: req.user.fullName });
+  logEvent(req.user.tenantId, req.user.id, 'application.created', {
+    entityType: 'application',
+    entityId: newApp.id,
+    payload: {
+      source: 'snag',
+      source_domain: (() => { try { return new URL(lead.url).hostname.toLowerCase(); } catch (_) { return ''; } })(),
+      has_url: !!lead.url,
+    },
+  });
+  logEvent(req.user.tenantId, req.user.id, 'job_board.lead_snagged', {
+    entityType: 'job_board_lead',
+    entityId: lead.id,
+    payload: { source: lead.source || 'unknown', fit_score: lead.fit_score || 0 },
+  });
   res.json({ ok: true, application: newApp });
 });
 
@@ -50,7 +65,21 @@ router.post('/job-board/crawl', requireAuth, crawlLimiter, async (req, res) => {
   res.json({ ok: true, message: 'Crawl running in background. Check back in 2-3 minutes.' });
   const { crawlJobBoards } = require('../services/crawler');
   crawlJobBoards(req.user.tenantId, req.user.id)
-    .then(r => console.log(`[crawl] Done for user ${req.user.id}. Added ${r.leads.length} new leads.`))
+    .then(r => {
+      console.log(`[crawl] Done for user ${req.user.id}. Added ${r.leads.length} new leads.`);
+      const stats = r.sourceStats || {};
+      for (const [source, s] of Object.entries(stats)) {
+        logEvent(req.user.tenantId, req.user.id, 'job_board.crawled', {
+          payload: {
+            source,
+            urls_found: s.urlsFound || 0,
+            urls_kept: s.added || 0,
+            filtered_by_location: s.filteredByLocation || 0,
+            filtered_by_score: s.filteredByScore || 0,
+          },
+        });
+      }
+    })
     .catch(e => console.error('[crawl error]', e.message));
 });
 
