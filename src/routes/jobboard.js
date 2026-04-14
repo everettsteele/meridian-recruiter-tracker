@@ -42,8 +42,9 @@ router.post('/job-board/snag', requireAuth, validate(schemas.snagRequest), async
   });
 
   await db.updateJobBoardLead(req.user.tenantId, lead_id, { status: 'snagged', snagged_app_id: newApp.id });
-  const { autoSelectResumeInBackground } = require('./applications');
+  const { autoSelectResumeInBackground, autoBuildDossierInBackground } = require('./applications');
   autoSelectResumeInBackground(req.user.tenantId, req.user.id, newApp, { fullName: req.user.fullName });
+  autoBuildDossierInBackground(req.user.tenantId, req.user, newApp);
   logEvent(req.user.tenantId, req.user.id, 'application.created', {
     entityType: 'application',
     entityId: newApp.id,

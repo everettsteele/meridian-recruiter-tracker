@@ -95,6 +95,86 @@ function autoSelectResumeInBackground(tenantId, userId, app, userCtx) {
   });
 }
 
+// Fire-and-forget: build (or reuse) a company dossier for a newly created app.
+// Silently skips when quota is exhausted, when no usable signal exists, or when
+// the cached dossier is still fresh.
+function autoBuildDossierInBackground(tenantId, user, app) {
+  if (!process.env.ANTHROPIC_API_KEY) return;
+  if (!app.source_url && !app.company) return;
+  setImmediate(async () => {
+    try {
+      const { companyKey, getCachedDossier, isFresh, buildDossier } =
+        require('../services/dossier');
+      const { isPro, logAiUsage } = require('../middleware/tier');
+      const { query } = require('../db/pool');
+      const { fetchJobDescription } = require('../services/anthropic');
+
+      const key = companyKey(app.company, app.source_url);
+      if (!key) return;
+
+      const existing = await getCachedDossier(key);
+      if (existing && isFresh(existing)) {
+        diagLog(`AUTO-DOSSIER cache hit key=${key} app=${app.id}`);
+        return;
+      }
+
+      // Quota gate for Free users.
+      if (!isPro(user)) {
+        const { rows } = await query(
+          `SELECT COUNT(*)::int AS n FROM usage_log
+             WHERE user_id = $1 AND action = 'dossier_generation'
+             AND created_at > NOW() - INTERVAL '7 days'`,
+          [user.id]
+        );
+        if ((rows[0]?.n || 0) >= 3) {
+          diagLog(`AUTO-DOSSIER quota exhausted user=${user.id} app=${app.id}`);
+          return;
+        }
+      }
+
+      // Need JD text.
+      let jdText = app.jd_text || '';
+      if (!jdText && app.source_url) {
+        try {
+          jdText = await fetchJobDescription(app.source_url);
+          if (jdText && jdText.length > 50) {
+            await db.setJdText(tenantId, app.id, jdText);
+          }
+        } catch (_) {}
+      }
+      if (!jdText || jdText.length < 200) {
+        diagLog(`AUTO-DOSSIER not enough context app=${app.id}`);
+        return;
+      }
+
+      const dossier = await buildDossier({
+        userId: user.id,
+        company: app.company,
+        sourceUrl: app.source_url,
+        jdText,
+      });
+      await logAiUsage(tenantId, user.id, 'dossier_generation',
+        (dossier.tokens_in || 0) + (dossier.tokens_out || 0),
+        { company_key: key, auto: true });
+      logEvent(tenantId, user.id, 'company_dossier.built', {
+        entityType: 'application',
+        entityId: app.id,
+        payload: {
+          company_key: key,
+          from_cache: false,
+          tokens_in: dossier.tokens_in || 0,
+          tokens_out: dossier.tokens_out || 0,
+          jd_length_bucket: lengthBucket(jdText),
+          auto: true,
+        },
+      });
+      diagLog(`AUTO-DOSSIER built key=${key} app=${app.id}`);
+    } catch (e) {
+      diagLog('AUTO-DOSSIER failed: ' + e.message);
+    }
+  });
+}
+
 // ================================================================
 // Routes — all scoped by req.user.tenantId / req.user.id
 // ================================================================
@@ -118,6 +198,7 @@ router.post('/applications', requireAuth, validate(schemas.applicationCreate), a
     activity: [{ date: today, type: status || 'identified', note: 'Added' }],
   });
   autoSelectResumeInBackground(req.user.tenantId, req.user.id, app, { fullName: req.user.fullName });
+  autoBuildDossierInBackground(req.user.tenantId, req.user, app);
   logEvent(req.user.tenantId, req.user.id, 'application.created', {
     entityType: 'application',
     entityId: app.id,
@@ -792,3 +873,4 @@ router.get('/export/applications', requireAuth, async (req, res) => {
 
 module.exports = router;
 module.exports.autoSelectResumeInBackground = autoSelectResumeInBackground;
+module.exports.autoBuildDossierInBackground = autoBuildDossierInBackground;
